@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Empanelment - Fintelligence Academy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo" onclick="showLanding()">
+                    <div class="logo-icon">F</div>
+                    <span>Fintelligence Academy</span>
+                </div>
+                <div class="header-actions">
+                    <button id="logoutBtn" class="btn btn--secondary hidden" onclick="logout()">
+                        🚪 Logout
+                    </button>
+                    <button class="theme-toggle" onclick="toggleTheme()">
+                        <span id="themeIcon">🌙</span>
+                        <span id="themeText">Dark</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main id="mainContent">
+            <!-- Landing Page -->
+            <div id="landingPage">
+                <section class="hero">
+                    <div class="hero-content">
+                        <h1>Join Our Faculty Team</h1>
+                        <p>
+                            Empower the next generation of finance professionals by sharing your expertise 
+                            at Fintelligence Academy. Join our community of distinguished educators.
+                        </p>
+                        <button class="btn btn--primary btn--lg" onclick="startApplication()">
+                            🚀 Start Your Application
+                        </button>
+                    </div>
+                </section>
+
+                <div class="container">
+                    <div class="benefits-grid">
+                        <div class="card">
+                            <div class="card__body">
+                                <div class="benefit-icon">👥</div>
+                                <h3>Expert Community</h3>
+                                <p>Join a prestigious community of finance and technology experts shaping the future of education.</p>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card__body">
+                                <div class="benefit-icon">💻</div>
+                                <h3>Flexible Teaching</h3>
+                                <p>Choose your preferred teaching mode - online, offline, or hybrid - and set your own schedule.</p>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card__body">
+                                <div class="benefit-icon">📈</div>
+                                <h3>Competitive Compensation</h3>
+                                <p>Earn competitive compensation while making a meaningful impact in finance education.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cta-section">
+                        <div class="card">
+                            <div class="card__body">
+                                <h2>Ready to Make an Impact?</h2>
+                                <p>Start your empanelment journey today and help shape the future of finance education.</p>
+                                <button class="btn btn--primary btn--lg" onclick="startApplication()">
+                                    Begin Application Process
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Application Form -->
+            <div id="applicationPage" class="hidden">
+                <div class="container">
+                    <div class="form-wizard">
+                        <div class="progress-bar" id="progressBar"></div>
+
+                        <div class="card">
+                            <div class="card__body">
+                                <div id="formSteps"></div>
+                                
+                                <div class="form-navigation">
+                                    <button type="button" class="btn btn--secondary" id="prevBtn" onclick="prevStep()" disabled>
+                                        ← Previous
+                                    </button>
+                                    
+                                    <button type="button" class="btn btn--primary" id="nextBtn" onclick="nextStep()">
+                                        Next →
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Login -->
+            <div id="adminLoginPage" class="hidden">
+                <div class="auth-container">
+                    <form class="auth-form" onsubmit="adminLogin(event)">
+                        <div class="auth-header">
+                            <div class="logo-icon">F</div>
+                            <h2>Admin Login</h2>
+                            <p>Access the faculty empanelment dashboard</p>
+                        </div>
+                        
+                        <div id="loginError" class="alert alert--error hidden"></div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" id="adminEmail" class="form-control" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Password</label>
+                            <input type="password" id="adminPassword" class="form-control" required>
+                        </div>
+                        
+                        <button type="submit" class="btn btn--primary btn--full-width" id="loginBtn">
+                            Login
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Admin Dashboard -->
+            <div id="adminDashboard" class="hidden">
+                <div class="admin-container">
+                    <div class="dashboard-header">
+                        <h1>Faculty Empanelment Dashboard</h1>
+                        <p>Manage and review faculty applications</p>
+                    </div>
+
+                    <div class="dashboard-stats" id="dashboardStats"></div>
+
+                    <div class="dashboard-controls">
+                        <div class="search-filters">
+                            <input type="text" class="form-control" placeholder="Search applications..." id="searchInput" oninput="filterApplications()">
+                            <select class="form-control" id="statusFilter" onchange="filterApplications()">
+                                <option value="">All Status</option>
+                                <option value="Pending">Pending</option>
+                                <option value="Under Review">Under Review</option>
+                                <option value="Approved">Approved</option>
+                                <option value="Rejected">Rejected</option>
+                            </select>
+                        </div>
+                        <button class="btn btn--primary" onclick="exportToCSV()">
+                            💾 Export CSV
+                        </button>
+                    </div>
+
+                    <div class="data-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Designation</th>
+                                    <th>Experience</th>
+                                    <th>Status</th>
+                                    <th>Applied</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="applicationsTable">
+                            </tbody>
+                        </table>
+                        <div id="emptyState" class="empty-state hidden">
+                            <div class="empty-icon">📥</div>
+                            <p>No applications found</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Success Page -->
+            <div id="successPage" class="hidden">
+                <div class="success-container">
+                    <div class="success-icon">✅</div>
+                    <h2>Application Submitted Successfully!</h2>
+                    <p>
+                        Thank you for your interest in joining Fintelligence Academy as a faculty member. 
+                        Our team will review your application and get back to you within 5-7 business days.
+                    </p>
+                    <button class="btn btn--primary btn--lg" onclick="showLanding()">
+                        ➕ Submit Another Application
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Admin Access Button -->
+        <button id="adminAccessBtn" class="admin-access-btn" onclick="showAdminLogin()" title="Admin Access">
+            ⚙️
+        </button>
+
+        <!-- Application Detail Modal -->
+        <div id="applicationModal" class="modal hidden">
+            <div class="modal-backdrop" onclick="closeModal()"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Application Details</h3>
+                    <button class="modal-close" onclick="closeModal()">×</button>
+                </div>
+                <div class="modal-body" id="modalBody"></div>
+            </div>
+        </div>
+
+        <!-- Document Viewer Modal -->
+        <div id="documentModal" class="modal hidden">
+            <div class="modal-backdrop" onclick="closeDocumentModal()"></div>
+            <div class="modal-content document-modal">
+                <div class="modal-header">
+                    <h3 id="documentTitle">Document Viewer</h3>
+                    <div class="document-actions">
+                        <button class="btn btn--secondary" id="downloadDocBtn" onclick="downloadCurrentDocument()">
+                            📥 Download
+                        </button>
+                        <button class="modal-close" onclick="closeDocumentModal()">×</button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div id="documentViewer" class="document-viewer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
