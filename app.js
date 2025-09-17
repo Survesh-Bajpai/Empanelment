@@ -1,1694 +1,1662 @@
-// Global Storage Configuration using JSONBin.io
-const STORAGE_CONFIG = {
-    baseUrl: 'https://api.jsonbin.io/v3',
-    binId: '6651a2b2e41b4d34e40f8b53',
-    masterKey: '$2a$10$PfRvjBg7MHdPfRvjBg7MHdPfRvjBg7MHdP',
-    fallbackKey: 'faculty-applications-backup'
-};
+// =================== FINTELLIGENCE FACULTY EMPANELMENT SYSTEM ===================
+// GitHub Pages Compatible Faculty Empanelment App with Global Database
+// Multiple Storage Strategies: GitHub Gist API, FormSubmit Email, localStorage
+// Features: Complete form workflow, document management, admin dashboard
+// ================================================================================
 
-// Admin credentials
-const ADMIN_CREDENTIALS = {
+// ========== GLOBAL CONFIGURATION ==========
+const CONFIG = {
+  // Admin credentials
+  admin: {
     email: 'Survesh@fintelligenceacademy.com',
     password: 'Self@1111'
+  },
+  
+  // Storage strategies (in order of preference)
+  storage: {
+    github: {
+      apiUrl: 'https://api.github.com/gists',
+      description: 'Faculty Applications Database - Fintelligence Academy',
+      filename: 'applications.json',
+      enabled: true
+    },
+    formsubmit: {
+      endpoint: 'https://formsubmit.co/ajax/admin@fintelligenceacademy.com',
+      enabled: true
+    },
+    localStorage: {
+      key: 'fintelligence-faculty-applications',
+      enabled: true
+    }
+  },
+  
+  // Form configuration
+  form: {
+    maxFileSize: 5 * 1024 * 1024, // 5MB
+    allowedTypes: ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'],
+    requiredDocuments: ['photo', 'panCard', 'aadharFront', 'aadharBack', 'resume']
+  }
 };
 
-// Application state
-let currentPage = 'landing';
-let currentStep = 0;
-let theme = localStorage.getItem('theme') || 'light';
-let isLoggedIn = localStorage.getItem('adminToken') !== null;
+// ========== GLOBAL STATE ==========
+let theme = localStorage.getItem('fintelligence-theme') || 'light';
+let isLoggedIn = localStorage.getItem('fintelligence-admin-token') !== null;
 let applications = [];
 let filteredApplications = [];
+let currentStep = 0;
+let formData = getEmptyFormData();
+let currentEditingId = null;
 
-// Form data structure
-let formData = {
-    personalInfo: {
-        fullName: '', email: '', phone: '', dob: '', gender: '', 
-        address: '', city: '', state: '', pincode: ''
-    },
-    professionalInfo: {
-        designation: '', organization: '', experience: 5, expertise: [],
-        qualifications: '', certifications: '', linkedinProfile: '', bio: ''
-    },
-    documents: {
-        photo: null, panCard: null, aadharFront: null, 
-        aadharBack: null, resume: null
-    },
-    teachingPreferences: {
-        subjects: [], mode: '', availability: '', expectedCompensation: '50000'
-    }
-};
-
-// Form validation errors
-let errors = {};
-
-// Data options from the provided configuration
-const expertiseOptions = [
-    "Artificial Intelligence & Machine Learning",
-    "Quantitative Finance", 
-    "Traditional Finance",
-    "Data Science & Analytics",
-    "Financial Modeling",
-    "Risk Management",
-    "Portfolio Management", 
-    "Algorithmic Trading",
-    "Blockchain & Cryptocurrency",
-    "Financial Research",
-    "Python for Finance",
-    "Excel & VBA",
-    "Derivatives Trading",
-    "Investment Banking",
-    "Financial Planning"
+// Document types and form options
+const DOCUMENT_TYPES = [
+  { key: 'photo', label: 'Passport Photo', icon: '📷', required: true },
+  { key: 'panCard', label: 'PAN Card', icon: '🆔', required: true },
+  { key: 'aadharFront', label: 'Aadhar Front', icon: '🆔', required: true },
+  { key: 'aadharBack', label: 'Aadhar Back', icon: '🆔', required: true },
+  { key: 'resume', label: 'Resume/CV', icon: '📄', required: true }
 ];
 
-const subjectOptions = [
-    "AI/LLM Agents in Finance",
-    "Quantitative Finance Methods",
-    "Financial Market Analysis", 
-    "Statistical Modeling",
-    "Machine Learning for Finance",
-    "Risk Assessment & Management",
-    "Portfolio Optimization",
-    "Trading Strategies",
-    "Financial Data Analysis",
-    "Python Programming",
-    "Excel Advanced Techniques",
-    "Derivatives & Options",
-    "Investment Analysis", 
-    "Corporate Finance",
-    "Financial Planning"
+const EXPERTISE_OPTIONS = [
+  'Artificial Intelligence & Machine Learning',
+  'Quantitative Finance', 
+  'Traditional Finance',
+  'Data Science & Analytics',
+  'Financial Modeling',
+  'Risk Management',
+  'Portfolio Management', 
+  'Algorithmic Trading',
+  'Blockchain & Cryptocurrency',
+  'Financial Research',
+  'Python for Finance',
+  'Excel & VBA',
+  'Derivatives Trading',
+  'Investment Banking',
+  'Financial Planning'
 ];
 
-const steps = [
-    { title: 'Personal Info', icon: '👤' },
-    { title: 'Professional', icon: '💼' },
-    { title: 'Documents', icon: '📄' },
-    { title: 'Teaching', icon: '🎓' },
-    { title: 'Review', icon: '✅' }
+const SUBJECT_OPTIONS = [
+  'AI/LLM Agents in Finance',
+  'Quantitative Finance Methods',
+  'Financial Market Analysis', 
+  'Statistical Modeling',
+  'Machine Learning for Finance',
+  'Risk Assessment & Management',
+  'Portfolio Optimization',
+  'Trading Strategies',
+  'Financial Data Analysis',
+  'Python Programming',
+  'Excel Advanced Techniques',
+  'Derivatives & Options',
+  'Investment Analysis', 
+  'Corporate Finance',
+  'Financial Planning'
 ];
 
-// =============================================================================
-// STORAGE FUNCTIONS - Using JSONBin.io with fallback to localStorage
-// =============================================================================
-
-async function saveToGlobalDB(data) {
-    try {
-        console.log('Saving to global database...');
-        showLoading('Saving to global database...');
-        
-        const response = await fetch(`${STORAGE_CONFIG.baseUrl}/b/${STORAGE_CONFIG.binId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Master-Key': STORAGE_CONFIG.masterKey,
-                'X-Bin-Versioning': 'false'
-            },
-            body: JSON.stringify({ applications: data })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        console.log('Successfully saved to global database');
-        
-        // Also save to localStorage as backup
-        localStorage.setItem(STORAGE_CONFIG.fallbackKey, JSON.stringify(data));
-        
-        hideLoading();
-        return result;
-    } catch (error) {
-        console.error('Error saving to global database:', error);
-        // Fallback to localStorage
-        localStorage.setItem(STORAGE_CONFIG.fallbackKey, JSON.stringify(data));
-        hideLoading();
-        return { success: true, fallback: true };
-    }
+// ========== UTILITY FUNCTIONS ==========
+function $(selector) { 
+  return document.querySelector(selector); 
 }
 
-async function loadFromGlobalDB() {
-    try {
-        console.log('Loading from global database...');
-        showLoading('Loading applications...');
-        
-        const response = await fetch(`${STORAGE_CONFIG.baseUrl}/b/${STORAGE_CONFIG.binId}/latest`, {
-            headers: {
-                'X-Master-Key': STORAGE_CONFIG.masterKey
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        console.log('Successfully loaded from global database');
-        hideLoading();
-        
-        return result.record?.applications || [];
-    } catch (error) {
-        console.error('Error loading from global database:', error);
-        hideLoading();
-        
-        // Fallback to localStorage
-        const fallbackData = localStorage.getItem(STORAGE_CONFIG.fallbackKey);
-        return fallbackData ? JSON.parse(fallbackData) : [];
-    }
-}
-
-// =============================================================================
-// UTILITY FUNCTIONS
-// =============================================================================
-
-function showLoading(message = 'Loading...') {
-    const overlay = document.getElementById('loadingOverlay');
-    const text = document.getElementById('loadingText');
-    if (overlay && text) {
-        text.textContent = message;
-        overlay.classList.remove('hidden');
-    }
-}
-
-function hideLoading() {
-    const overlay = document.getElementById('loadingOverlay');
-    if (overlay) {
-        overlay.classList.add('hidden');
-    }
+function $all(selector) { 
+  return document.querySelectorAll(selector); 
 }
 
 function generateId() {
-    return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+  return 'app_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-// =============================================================================
-// THEME FUNCTIONS - FIXED
-// =============================================================================
+function formatDate(dateString) {
+  return new Date(dateString).toLocaleDateString('en-IN', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function fileSizeReadable(size) {
+  if (size >= 1024 * 1024) return (size/1024/1024).toFixed(1) + ' MB';
+  if (size >= 1024) return (size/1024).toFixed(1) + ' KB';
+  return size + ' B';
+}
+
+function getEmptyFormData() {
+  return {
+    personalInfo: {
+      fullName: '', email: '', phone: '', dob: '', gender: '', 
+      address: '', city: '', state: '', pincode: ''
+    },
+    professionalInfo: {
+      designation: '', organization: '', experience: '', expertise: [], 
+      qualifications: '', certifications: '', linkedinProfile: '', bio: ''
+    },
+    documents: {
+      photo: null, panCard: null, aadharFront: null, aadharBack: null, resume: null
+    },
+    teachingPreferences: {
+      subjects: [], mode: '', availability: '', expectedCompensation: ''
+    }
+  };
+}
+
+// ========== SAMPLE DATA CREATION ==========
+function createSampleApplications() {
+  const sampleData = [
+    {
+      id: 'app_sample_001',
+      personalInfo: {
+        fullName: 'Dr. Rajesh Kumar',
+        email: 'rajesh.kumar@email.com',
+        phone: '+91-9876543210',
+        dob: '1985-06-15',
+        gender: 'Male',
+        city: 'Mumbai',
+        address: '123 Finance Street, Andheri East, Mumbai',
+        state: 'Maharashtra',
+        pincode: '400069'
+      },
+      professionalInfo: {
+        designation: 'Senior Financial Analyst',
+        organization: 'HDFC Bank',
+        experience: '11-15',
+        expertise: ['Quantitative Finance', 'Risk Management', 'Financial Modeling'],
+        qualifications: 'MBA in Finance from IIM Mumbai, CFA Level 3',
+        certifications: 'CFA, FRM, PMP',
+        linkedinProfile: 'https://linkedin.com/in/rajesh-kumar-finance',
+        bio: 'Experienced financial professional with 12+ years in quantitative finance and risk management.'
+      },
+      documents: {
+        photo: {
+          name: 'photo.jpg',
+          size: 245760,
+          type: 'image/jpeg',
+          data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k='
+        },
+        panCard: {
+          name: 'pan_card.jpg',
+          size: 189440,
+          type: 'image/jpeg',
+          data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k='
+        },
+        aadharFront: {
+          name: 'aadhar_front.jpg',
+          size: 234560,
+          type: 'image/jpeg',
+          data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k='
+        },
+        aadharBack: {
+          name: 'aadhar_back.jpg',
+          size: 298760,
+          type: 'image/jpeg',
+          data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k='
+        },
+        resume: {
+          name: 'resume.pdf',
+          size: 524288,
+          type: 'application/pdf',
+          data: 'data:application/pdf;base64,JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKPJ4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovUmVzb3VyY2VzIDw8Ci9Gb250IDw8Ci9GMSA0IDAgUgo+PgovUHJvY1NldCBbL1BERiAvVGV4dF0KPj4KL01lZGlhQm94IFswIDAgNjEyIDc5Ml0KL0NvbnRlbnRzIDUgMCBSCj4+CmVuZG9iago0IDAgb2JqCjw8Ci9UeXBlIC9Gb250Ci9TdWJ0eXBlIC9UeXBlMQovQmFzZUZvbnQgL0hlbHZldGljYQo+PgplbmRvYmoKNSAwIG9iago8PAovTGVuZ3RoIDQ0Cj4+CnN0cmVhbQpCVApxCjcwIDcwIFRECihTYW1wbGUgRG9jdW1lbnQpIFRqClQqCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNzQgMDAwMDAgbiAKMDAwMDAwMDEyMCAwMDAwMCBuIAowMDAwMDAyOTcgMDAwMDAgbiAKMDAwMDAwMzY1IDAwMDAwIG4gCnRyYWlsZXIKPDwKL1NpemUgNgovUm9vdCAxIDAgUgo+PgpzdGFydHhyZWYKNDU4CiUlRU9G'
+        }
+      },
+      teachingPreferences: {
+        subjects: ['Quantitative Finance Methods', 'Risk Assessment & Management', 'Financial Modeling'],
+        mode: 'Hybrid',
+        availability: 'Weekends and evenings, flexible schedule',
+        expectedCompensation: '75000-100000'
+      },
+      applicationStatus: 'Pending',
+      submissionDate: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+      adminNotes: ''
+    },
+    {
+      id: 'app_sample_002',
+      personalInfo: {
+        fullName: 'Prof. Priya Singh',
+        email: 'priya.singh@email.com',
+        phone: '+91-9876543211',
+        dob: '1980-03-22',
+        gender: 'Female',
+        city: 'Bangalore',
+        address: '456 Tech Park, Whitefield, Bangalore',
+        state: 'Karnataka',
+        pincode: '560066'
+      },
+      professionalInfo: {
+        designation: 'Associate Professor',
+        organization: 'IIM Bangalore',
+        experience: '6-10',
+        expertise: ['Artificial Intelligence & Machine Learning', 'Data Science & Analytics', 'Python for Finance'],
+        qualifications: 'PhD in Computer Science from IISc Bangalore, M.Tech in AI',
+        certifications: 'Google Cloud ML Engineer, AWS Certified',
+        linkedinProfile: 'https://linkedin.com/in/priya-singh-ai',
+        bio: 'AI researcher and educator specializing in machine learning applications in finance.'
+      },
+      documents: {
+        photo: {
+          name: 'profile_photo.jpg',
+          size: 198765,
+          type: 'image/jpeg',
+          data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k='
+        },
+        panCard: {
+          name: 'pan.jpg',
+          size: 156789,
+          type: 'image/jpeg',
+          data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k='
+        },
+        aadharFront: null, // Missing document to show incomplete status
+        aadharBack: {
+          name: 'aadhar_back.jpg',
+          size: 267890,
+          type: 'image/jpeg',
+          data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k='
+        },
+        resume: {
+          name: 'cv_priya_singh.pdf',
+          size: 445678,
+          type: 'application/pdf',
+          data: 'data:application/pdf;base64,JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKPJ4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovUmVzb3VyY2VzIDw8Ci9Gb250IDw8Ci9GMSA0IDAgUgo+PgovUHJvY1NldCBbL1BERiAvVGV4dF0KPj4KL01lZGlhQm94IFswIDAgNjEyIDc5Ml0KL0NvbnRlbnRzIDUgMCBSCj4+CmVuZG9iago0IDAgb2JqCjw8Ci9UeXBlIC9Gb250Ci9TdWJ0eXBlIC9UeXBlMQovQmFzZUZvbnQgL0hlbHZldGljYQo+PgplbmRvYmoKNSAwIG9iago8PAovTGVuZ3RoIDQ0Cj4+CnN0cmVhbQpCVApxCjcwIDcwIFRECihTYW1wbGUgRG9jdW1lbnQpIFRqClQqCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNzQgMDAwMDAgbiAKMDAwMDAwMDEyMCAwMDAwMCBuIAowMDAwMDAyOTcgMDAwMDAgbiAKMDAwMDAwMzY1IDAwMDAwIG4gCnRyYWlsZXIKPDwKL1NpemUgNgovUm9vdCAxIDAgUgo+PgpzdGFydHhyZWYKNDU4CiUlRU9G'
+        }
+      },
+      teachingPreferences: {
+        subjects: ['AI/LLM Agents in Finance', 'Machine Learning for Finance', 'Python Programming'],
+        mode: 'Online',
+        availability: 'Flexible, prefer weekday evenings',
+        expectedCompensation: '50000-75000'
+      },
+      applicationStatus: 'Approved',
+      submissionDate: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+      adminNotes: 'Excellent candidate with strong AI background. Approved for ML finance courses.'
+    },
+    {
+      id: 'app_sample_003',
+      personalInfo: {
+        fullName: 'Mr. Arjun Patel',
+        email: 'arjun.patel@email.com',
+        phone: '+91-9876543212',
+        dob: '1990-11-08',
+        gender: 'Male',
+        city: 'Ahmedabad',
+        address: '789 Business District, SG Highway, Ahmedabad',
+        state: 'Gujarat',
+        pincode: '380015'
+      },
+      professionalInfo: {
+        designation: 'Trading Manager',
+        organization: 'Zerodha Securities',
+        experience: '3-5',
+        expertise: ['Algorithmic Trading', 'Derivatives Trading', 'Portfolio Management'],
+        qualifications: 'MBA in Finance from XLRI, B.Tech in Computer Science',
+        certifications: 'NISM Certified, Options Trading Specialist',
+        linkedinProfile: 'https://linkedin.com/in/arjun-patel-trading',
+        bio: 'Trading professional with expertise in algorithmic strategies and derivatives.'
+      },
+      documents: {
+        photo: {
+          name: 'arjun_photo.jpg',
+          size: 187654,
+          type: 'image/jpeg',
+          data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k='
+        },
+        panCard: null, // Missing
+        aadharFront: null, // Missing
+        aadharBack: null, // Missing
+        resume: null // Missing - incomplete application
+      },
+      teachingPreferences: {
+        subjects: ['Trading Strategies', 'Derivatives & Options', 'Algorithmic Trading'],
+        mode: 'Hybrid',
+        availability: 'Weekends only due to full-time trading responsibilities',
+        expectedCompensation: '100000-150000'
+      },
+      applicationStatus: 'Under Review',
+      submissionDate: new Date(Date.now() - 43200000).toISOString(), // 12 hours ago
+      adminNotes: 'Good trading background but missing required documents. Following up.'
+    }
+  ];
+  
+  return sampleData;
+}
+
+// ========== THEME MANAGEMENT ==========
+function applyTheme() {
+  document.documentElement.setAttribute('data-color-scheme', theme);
+  const themeIcon = $('#themeIcon');
+  const themeText = $('#themeText');
+  if (themeIcon && themeText) {
+    themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+    themeText.textContent = theme === 'light' ? 'Dark' : 'Light';
+  }
+}
 
 function toggleTheme() {
-    try {
-        console.log('Toggling theme from', theme);
-        
-        // Toggle theme
-        theme = theme === 'light' ? 'dark' : 'light';
-        
-        // Apply theme immediately
-        document.documentElement.setAttribute('data-theme', theme);
-        document.body.setAttribute('data-theme', theme);
-        
-        // Save to localStorage
-        localStorage.setItem('theme', theme);
-        
-        // Update button immediately
-        updateThemeToggle();
-        
-        console.log('Theme toggled to', theme);
-        
-        // Small delay for visual feedback
-        setTimeout(() => {
-            console.log('Theme toggle completed successfully');
-        }, 300);
-        
-    } catch (error) {
-        console.error('Error toggling theme:', error);
-    }
+  theme = theme === 'light' ? 'dark' : 'light';
+  localStorage.setItem('fintelligence-theme', theme);
+  applyTheme();
+  showToast('Theme switched to ' + theme + ' mode', 'info');
 }
 
-function updateThemeToggle() {
-    try {
-        const icon = document.getElementById('themeIcon');
-        const text = document.getElementById('themeText');
-        
-        if (icon && text) {
-            if (theme === 'dark') {
-                icon.textContent = '☀️';
-                text.textContent = 'Light';
-            } else {
-                icon.textContent = '🌙';
-                text.textContent = 'Dark';
-            }
-        }
-    } catch (error) {
-        console.error('Error updating theme toggle:', error);
-    }
-}
-
-function initializeTheme() {
-    document.documentElement.setAttribute('data-theme', theme);
-    document.body.setAttribute('data-theme', theme);
-    updateThemeToggle();
-}
-
-// =============================================================================
-// NAVIGATION FUNCTIONS - FIXED
-// =============================================================================
-
+// ========== NAVIGATION SYSTEM ==========
 function showPage(page) {
-    try {
-        console.log('Navigating to page:', page);
-        
-        // Hide all pages first
-        const pages = ['landingPage', 'applicationPage', 'adminLoginPage', 'adminDashboard', 'successPage'];
-        pages.forEach(pageId => {
-            const element = document.getElementById(pageId);
-            if (element) {
-                element.classList.add('hidden');
-            }
-        });
-        
-        // Show selected page
-        currentPage = page;
-        const adminAccessBtn = document.getElementById('adminAccessBtn');
-        
-        let targetPageId = '';
-        switch(page) {
-            case 'landing':
-                targetPageId = 'landingPage';
-                if (adminAccessBtn) adminAccessBtn.classList.remove('hidden');
-                break;
-            case 'application':
-                targetPageId = 'applicationPage';
-                if (adminAccessBtn) adminAccessBtn.classList.add('hidden');
-                setTimeout(() => initializeApplicationForm(), 100);
-                break;
-            case 'admin-login':
-                targetPageId = 'adminLoginPage';
-                if (adminAccessBtn) adminAccessBtn.classList.add('hidden');
-                break;
-            case 'admin':
-                targetPageId = 'adminDashboard';
-                if (adminAccessBtn) adminAccessBtn.classList.add('hidden');
-                setTimeout(() => initializeDashboard(), 100);
-                break;
-            case 'success':
-                targetPageId = 'successPage';
-                if (adminAccessBtn) adminAccessBtn.classList.remove('hidden');
-                break;
+  console.log('Navigating to page:', page);
+  
+  // Hide all main content sections
+  const pages = $all('#mainContent > div');
+  pages.forEach(div => div.classList.add('hidden'));
+  
+  const adminBtn = $('#adminAccessBtn');
+  const logoutBtn = $('#logoutBtn');
+  
+  switch(page) {
+    case 'landing': 
+      $('#landingPage')?.classList.remove('hidden');
+      adminBtn?.classList.remove('hidden');
+      logoutBtn?.classList.add('hidden');
+      break;
+      
+    case 'application': 
+      $('#applicationPage')?.classList.remove('hidden');
+      adminBtn?.classList.add('hidden');
+      initApplicationForm();
+      break;
+      
+    case 'admin-login': 
+      $('#adminLoginPage')?.classList.remove('hidden');
+      adminBtn?.classList.add('hidden');
+      break;
+      
+    case 'admin': 
+      $('#adminDashboard')?.classList.remove('hidden');
+      adminBtn?.classList.add('hidden');
+      logoutBtn?.classList.remove('hidden');
+      initDashboard();
+      break;
+      
+    case 'success': 
+      $('#successPage')?.classList.remove('hidden');
+      adminBtn?.classList.remove('hidden');
+      logoutBtn?.classList.add('hidden');
+      break;
+  }
+}
+
+// Public navigation functions
+function showLanding() { showPage('landing'); }
+function startApplication() { 
+  formData = getEmptyFormData(); 
+  currentStep = 0; 
+  showPage('application'); 
+}
+function showAdminLogin() { showPage('admin-login'); }
+
+// ========== NOTIFICATION SYSTEM ==========
+function showToast(message, type = 'info', duration = 4000) {
+  const container = $('#toastContainer');
+  if (!container) return;
+  
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span>${getToastIcon(type)}</span>
+      <span>${message}</span>
+    </div>
+  `;
+  
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.remove();
+  }, duration);
+}
+
+function getToastIcon(type) {
+  const icons = {
+    success: '✅',
+    error: '❌',
+    warning: '⚠️',
+    info: 'ℹ️'
+  };
+  return icons[type] || 'ℹ️';
+}
+
+function showLoading(message = 'Processing...') {
+  const indicator = $('#loadingIndicator');
+  const text = $('#loadingText');
+  if (indicator && text) {
+    text.textContent = message;
+    indicator.classList.remove('hidden');
+  }
+}
+
+function hideLoading() {
+  const indicator = $('#loadingIndicator');
+  if (indicator) {
+    indicator.classList.add('hidden');
+  }
+}
+
+// ========== STORAGE SYSTEM ==========
+class GlobalStorage {
+  constructor() {
+    this.strategies = [
+      { name: 'Local Storage', handler: this.localStorageStrategy.bind(this) },
+      { name: 'GitHub Gist', handler: this.githubStrategy.bind(this) },
+      { name: 'FormSubmit Email', handler: this.formsubmitStrategy.bind(this) }
+    ];
+  }
+  
+  async save(data) {
+    let lastError = null;
+    
+    for (const strategy of this.strategies) {
+      try {
+        console.log(`Attempting to save with ${strategy.name}...`);
+        await strategy.handler.save(data);
+        console.log(`✅ Successfully saved with ${strategy.name}`);
+        this.updateDbStatus('online', `Connected via ${strategy.name}`);
+        return true;
+      } catch (error) {
+        console.warn(`❌ ${strategy.name} failed:`, error.message);
+        lastError = error;
+        continue;
+      }
+    }
+    
+    this.updateDbStatus('offline', 'All storage methods failed');
+    throw lastError || new Error('All storage strategies failed');
+  }
+  
+  async load() {
+    for (const strategy of this.strategies) {
+      try {
+        const result = await strategy.handler.load();
+        if (result && result.length >= 0) { // Changed condition to allow empty arrays
+          console.log(`✅ Loaded data from ${strategy.name}: ${result.length} items`);
+          this.updateDbStatus('online', `Connected via ${strategy.name}`);
+          return result;
         }
-        
-        const targetPage = document.getElementById(targetPageId);
-        if (targetPage) {
-            targetPage.classList.remove('hidden');
-            console.log('Successfully navigated to', page);
+      } catch (error) {
+        console.warn(`❌ ${strategy.name} load failed:`, error.message);
+        continue;
+      }
+    }
+    
+    console.log('📦 No existing data found, creating sample data');
+    // If no data exists anywhere, create and save sample data
+    const sampleData = createSampleApplications();
+    await this.localStorageStrategy.save(sampleData);
+    this.updateDbStatus('online', 'Initialized with sample data');
+    return sampleData;
+  }
+  
+  // Local Storage Strategy (Primary for GitHub Pages)
+  localStorageStrategy = {
+    save: async (data) => {
+      if (data.personalInfo) {
+        // Single application - add to existing array
+        const existing = JSON.parse(localStorage.getItem(CONFIG.storage.localStorage.key) || '[]');
+        const index = existing.findIndex(app => app.id === data.id);
+        if (index >= 0) {
+          existing[index] = data;
         } else {
-            console.error('Target page element not found:', targetPageId);
+          existing.push(data);
         }
-        
-    } catch (error) {
-        console.error('Error showing page:', error);
-    }
-}
-
-// Navigation wrapper functions
-function showLanding() {
-    showPage('landing');
-}
-
-function startApplication() {
-    try {
-        console.log('Starting application process');
-        
-        // Reset form data completely
-        formData = {
-            personalInfo: {
-                fullName: '', email: '', phone: '', dob: '', gender: '', 
-                address: '', city: '', state: '', pincode: ''
-            },
-            professionalInfo: {
-                designation: '', organization: '', experience: 5, expertise: [],
-                qualifications: '', certifications: '', linkedinProfile: '', bio: ''
-            },
-            documents: {
-                photo: null, panCard: null, aadharFront: null, 
-                aadharBack: null, resume: null
-            },
-            teachingPreferences: {
-                subjects: [], mode: '', availability: '', expectedCompensation: '50000'
-            }
-        };
-        
-        // Reset other state
-        errors = {};
-        currentStep = 0;
-        
-        // Navigate to application page
-        showPage('application');
-        
-        console.log('Application started successfully');
-    } catch (error) {
-        console.error('Error starting application:', error);
-    }
-}
-
-function showAdminLogin() {
-    showPage('admin-login');
-}
-
-// =============================================================================
-// ADMIN FUNCTIONS - FIXED
-// =============================================================================
-
-async function adminLogin(event) {
-    event.preventDefault();
+        localStorage.setItem(CONFIG.storage.localStorage.key, JSON.stringify(existing));
+      } else {
+        // Array of applications - replace entirely
+        localStorage.setItem(CONFIG.storage.localStorage.key, JSON.stringify(data));
+      }
+      return true;
+    },
     
-    try {
-        const email = document.getElementById('adminEmail').value.trim();
-        const password = document.getElementById('adminPassword').value.trim();
-        const errorDiv = document.getElementById('loginError');
-        const loginBtn = document.getElementById('loginBtn');
-        
-        console.log('Attempting admin login for:', email);
-        
-        // Show loading state
-        if (loginBtn) {
-            loginBtn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; margin-right: 8px;"></div>Logging in...';
-            loginBtn.disabled = true;
-        }
-        
-        // Clear previous errors
-        if (errorDiv) {
-            errorDiv.classList.add('hidden');
-            errorDiv.textContent = '';
-        }
-        
-        // Simulate network delay for better UX
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Check credentials
-        if (email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
-            // Success
-            localStorage.setItem('adminToken', 'admin-token-' + Date.now());
-            isLoggedIn = true;
-            
-            // Update UI
-            const logoutBtn = document.getElementById('logoutBtn');
-            if (logoutBtn) logoutBtn.classList.remove('hidden');
-            
-            // Navigate to dashboard
-            showPage('admin');
-            console.log('Admin login successful');
-        } else {
-            // Failure
-            if (errorDiv) {
-                errorDiv.textContent = 'Invalid email or password. Please check your credentials and try again.';
-                errorDiv.classList.remove('hidden');
-            }
-            console.log('Admin login failed - invalid credentials');
-        }
-        
-        // Reset button state
-        if (loginBtn) {
-            loginBtn.innerHTML = 'Login';
-            loginBtn.disabled = false;
-        }
-        
-    } catch (error) {
-        console.error('Error during admin login:', error);
-        const loginBtn = document.getElementById('loginBtn');
-        if (loginBtn) {
-            loginBtn.innerHTML = 'Login';
-            loginBtn.disabled = false;
-        }
-        
-        const errorDiv = document.getElementById('loginError');
-        if (errorDiv) {
-            errorDiv.textContent = 'An error occurred during login. Please try again.';
-            errorDiv.classList.remove('hidden');
-        }
+    load: async () => {
+      const data = localStorage.getItem(CONFIG.storage.localStorage.key);
+      return data ? JSON.parse(data) : [];
     }
-}
-
-function logout() {
-    try {
-        localStorage.removeItem('adminToken');
-        isLoggedIn = false;
-        
-        const logoutBtn = document.getElementById('logoutBtn');
-        if (logoutBtn) logoutBtn.classList.add('hidden');
-        
-        showLanding();
-        console.log('User logged out successfully');
-    } catch (error) {
-        console.error('Error during logout:', error);
+  };
+  
+  // GitHub Gist Strategy
+  githubStrategy = {
+    save: async (data) => {
+      const gistData = {
+        description: CONFIG.storage.github.description,
+        public: false,
+        files: {
+          [CONFIG.storage.github.filename]: {
+            content: JSON.stringify(data, null, 2)
+          }
+        }
+      };
+      
+      const response = await fetch(CONFIG.storage.github.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.github+json'
+        },
+        body: JSON.stringify(gistData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      localStorage.setItem('fintelligence-gist-id', result.id);
+      return result;
+    },
+    
+    load: async () => {
+      const gistId = localStorage.getItem('fintelligence-gist-id');
+      if (!gistId) return [];
+      
+      const response = await fetch(`${CONFIG.storage.github.apiUrl}/${gistId}`, {
+        headers: { 'Accept': 'application/vnd.github+json' }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+      
+      const gist = await response.json();
+      const content = gist.files[CONFIG.storage.github.filename]?.content;
+      return content ? JSON.parse(content) : [];
     }
-}
-
-// =============================================================================
-// APPLICATION FORM FUNCTIONS
-// =============================================================================
-
-function initializeApplicationForm() {
-    try {
-        renderProgressBar();
-        renderCurrentStep();
-        console.log('Application form initialized');
-    } catch (error) {
-        console.error('Error initializing application form:', error);
+  };
+  
+  // FormSubmit Email Strategy
+  formsubmitStrategy = {
+    save: async (data) => {
+      const formData = new FormData();
+      formData.append('_subject', 'New Faculty Application - Fintelligence Academy');
+      formData.append('_captcha', 'false');
+      formData.append('_template', 'table');
+      formData.append('application_data', JSON.stringify(data, null, 2));
+      formData.append('applicant_name', data.personalInfo?.fullName || 'Unknown');
+      formData.append('applicant_email', data.personalInfo?.email || 'Unknown');
+      formData.append('submission_time', new Date().toISOString());
+      
+      const response = await fetch(CONFIG.storage.formsubmit.endpoint, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`FormSubmit error: ${response.status}`);
+      }
+      
+      return response.json();
+    },
+    
+    load: async () => {
+      // FormSubmit doesn't provide read access, fallback to localStorage
+      return await this.localStorageStrategy.load();
     }
-}
-
-function renderProgressBar() {
-    const progressBar = document.getElementById('progressBar');
-    if (!progressBar) return;
+  };
+  
+  updateDbStatus(status, message) {
+    const statusDot = $('.status-dot');
+    const statusText = $('#dbStatusText');
     
-    progressBar.innerHTML = steps.map((step, index) => `
-        <div class="progress-step ${index === currentStep ? 'active' : index < currentStep ? 'completed' : ''}">
-            <span>${step.icon}</span>
-            <span>${step.title}</span>
-        </div>
-    `).join('');
-}
-
-function renderCurrentStep() {
-    const formSteps = document.getElementById('formSteps');
-    if (!formSteps) return;
-    
-    let content = '';
-    
-    switch(currentStep) {
-        case 0:
-            content = renderPersonalInfo();
-            break;
-        case 1:
-            content = renderProfessionalInfo();
-            break;
-        case 2:
-            content = renderDocuments();
-            break;
-        case 3:
-            content = renderTeachingPreferences();
-            break;
-        case 4:
-            content = renderReview();
-            break;
+    if (statusDot) {
+      statusDot.className = status === 'online' ? 'status-dot' : 'status-dot offline';
     }
     
-    formSteps.innerHTML = content;
-    updateNavigationButtons();
-    
-    // Initialize interactive elements after DOM update
-    setTimeout(() => {
-        initializeInteractiveElements();
-        clearValidationErrors();
-    }, 100);
-}
-
-function updateNavigationButtons() {
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
-    
-    if (prevBtn) {
-        prevBtn.disabled = currentStep === 0;
+    if (statusText) {
+      statusText.textContent = `Database: ${message}`;
     }
-    
-    if (nextBtn) {
-        nextBtn.disabled = false;
-        if (currentStep === steps.length - 1) {
-            nextBtn.innerHTML = '📤 Submit Application';
-        } else {
-            nextBtn.innerHTML = 'Next →';
-        }
-    }
+  }
 }
 
-function renderPersonalInfo() {
-    return `
-        <div class="form-section">
-            <h3>👤 Personal Information</h3>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Full Name *</label>
-                    <input type="text" class="form-control ${errors['personalInfo.fullName'] ? 'error' : ''}" 
-                           value="${formData.personalInfo.fullName}" 
-                           onchange="updateFormData('personalInfo', 'fullName', this.value)">
-                    ${errors['personalInfo.fullName'] ? `<div class="error-message">${errors['personalInfo.fullName']}</div>` : ''}
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Email Address *</label>
-                    <input type="email" class="form-control ${errors['personalInfo.email'] ? 'error' : ''}" 
-                           value="${formData.personalInfo.email}" 
-                           onchange="updateFormData('personalInfo', 'email', this.value)">
-                    ${errors['personalInfo.email'] ? `<div class="error-message">${errors['personalInfo.email']}</div>` : ''}
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Phone Number *</label>
-                    <input type="tel" class="form-control ${errors['personalInfo.phone'] ? 'error' : ''}" 
-                           value="${formData.personalInfo.phone}" 
-                           onchange="updateFormData('personalInfo', 'phone', this.value)">
-                    ${errors['personalInfo.phone'] ? `<div class="error-message">${errors['personalInfo.phone']}</div>` : ''}
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Date of Birth</label>
-                    <input type="date" class="form-control" 
-                           value="${formData.personalInfo.dob}" 
-                           onchange="updateFormData('personalInfo', 'dob', this.value)">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Gender</label>
-                    <select class="form-control" onchange="updateFormData('personalInfo', 'gender', this.value)">
-                        <option value="">Select Gender</option>
-                        <option value="Male" ${formData.personalInfo.gender === 'Male' ? 'selected' : ''}>Male</option>
-                        <option value="Female" ${formData.personalInfo.gender === 'Female' ? 'selected' : ''}>Female</option>
-                        <option value="Other" ${formData.personalInfo.gender === 'Other' ? 'selected' : ''}>Other</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">City</label>
-                    <input type="text" class="form-control" 
-                           value="${formData.personalInfo.city}" 
-                           onchange="updateFormData('personalInfo', 'city', this.value)">
-                </div>
-            </div>
-            <div class="form-row single">
-                <div class="form-group">
-                    <label class="form-label">Address</label>
-                    <textarea class="form-control" rows="3" 
-                              onchange="updateFormData('personalInfo', 'address', this.value)">${formData.personalInfo.address}</textarea>
-                </div>
-            </div>
-        </div>
-    `;
-}
+// Global storage instance
+const globalStorage = new GlobalStorage();
 
-function renderProfessionalInfo() {
-    return `
-        <div class="form-section">
-            <h3>💼 Professional Information</h3>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Current Designation *</label>
-                    <input type="text" class="form-control ${errors['professionalInfo.designation'] ? 'error' : ''}" 
-                           value="${formData.professionalInfo.designation}" 
-                           onchange="updateFormData('professionalInfo', 'designation', this.value)">
-                    ${errors['professionalInfo.designation'] ? `<div class="error-message">${errors['professionalInfo.designation']}</div>` : ''}
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Organization/Institution *</label>
-                    <input type="text" class="form-control ${errors['professionalInfo.organization'] ? 'error' : ''}" 
-                           value="${formData.professionalInfo.organization}" 
-                           onchange="updateFormData('professionalInfo', 'organization', this.value)">
-                    ${errors['professionalInfo.organization'] ? `<div class="error-message">${errors['professionalInfo.organization']}</div>` : ''}
-                </div>
-            </div>
-            <div class="form-row single">
-                <div class="form-group">
-                    <label class="form-label">Years of Experience</label>
-                    <div class="range-slider">
-                        <input type="range" min="0" max="30" class="range-input" 
-                               value="${formData.professionalInfo.experience}" 
-                               onchange="updateFormData('professionalInfo', 'experience', parseInt(this.value)); updateRangeValue('experienceValue', this.value + ' years')">
-                        <div class="range-value" id="experienceValue">${formData.professionalInfo.experience} years</div>
-                    </div>
-                </div>
-            </div>
-            <div class="form-row single">
-                <div class="form-group">
-                    <label class="form-label">Areas of Expertise *</label>
-                    <div class="multi-select" id="expertiseSelect">
-                        <div class="form-control multi-select-input" onclick="toggleDropdown('expertiseSelect')">
-                            ${formData.professionalInfo.expertise.length === 0 ? 
-                                '<span style="color: var(--color-text-secondary);">Select your areas of expertise</span>' : 
-                                formData.professionalInfo.expertise.map(item => `
-                                    <span class="selected-tag">
-                                        ${item}
-                                        <button class="tag-remove" onclick="removeFromMultiSelect('professionalInfo', 'expertise', '${item.replace(/'/g, "\\'")}'); event.stopPropagation();">×</button>
-                                    </span>
-                                `).join('')
-                            }
-                        </div>
-                        <div class="multi-select-dropdown" id="expertiseDropdown">
-                            ${expertiseOptions.map(option => `
-                                <div class="multi-select-option" onclick="toggleMultiSelectOption('professionalInfo', 'expertise', '${option.replace(/'/g, "\\'")}')">
-                                    <input type="checkbox" ${formData.professionalInfo.expertise.includes(option) ? 'checked' : ''}> ${option}
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                    ${errors['professionalInfo.expertise'] ? `<div class="error-message">${errors['professionalInfo.expertise']}</div>` : ''}
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">LinkedIn Profile</label>
-                    <input type="url" class="form-control" 
-                           value="${formData.professionalInfo.linkedinProfile}" 
-                           onchange="updateFormData('professionalInfo', 'linkedinProfile', this.value)"
-                           placeholder="https://linkedin.com/in/yourprofile">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Professional Certifications</label>
-                    <input type="text" class="form-control" 
-                           value="${formData.professionalInfo.certifications}" 
-                           onchange="updateFormData('professionalInfo', 'certifications', this.value)"
-                           placeholder="e.g., CFA, FRM, CPA">
-                </div>
-            </div>
-            <div class="form-row single">
-                <div class="form-group">
-                    <label class="form-label">Brief Bio/Experience Summary</label>
-                    <textarea class="form-control" rows="5" 
-                              onchange="updateFormData('professionalInfo', 'bio', this.value)"
-                              placeholder="Tell us about your experience, achievements, and what you bring to our platform...">${formData.professionalInfo.bio}</textarea>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function renderDocuments() {
-    return `
-        <div class="form-section">
-            <h3>📄 Document Upload</h3>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Passport Size Photo *</label>
-                    <div class="file-upload" onclick="triggerFileUpload('photo')" ondrop="handleFileDrop(event, 'photo')" ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--fintel-primary);">☁️</div>
-                        <p>Click to upload or drag and drop</p>
-                        <p style="font-size: 0.875rem; color: var(--color-text-secondary);">Image files only • Max 5MB</p>
-                    </div>
-                    <input type="file" id="photoInput" accept="image/*" style="display: none;" onchange="handleFileSelect(event, 'photo')">
-                    <div id="photoPreview"></div>
-                    ${errors['documents.photo'] ? `<div class="error-message">${errors['documents.photo']}</div>` : ''}
-                </div>
-                <div class="form-group">
-                    <label class="form-label">PAN Card *</label>
-                    <div class="file-upload" onclick="triggerFileUpload('panCard')" ondrop="handleFileDrop(event, 'panCard')" ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--fintel-primary);">☁️</div>
-                        <p>Click to upload or drag and drop</p>
-                        <p style="font-size: 0.875rem; color: var(--color-text-secondary);">Image files only • Max 5MB</p>
-                    </div>
-                    <input type="file" id="panCardInput" accept="image/*" style="display: none;" onchange="handleFileSelect(event, 'panCard')">
-                    <div id="panCardPreview"></div>
-                    ${errors['documents.panCard'] ? `<div class="error-message">${errors['documents.panCard']}</div>` : ''}
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Aadhar Card Front *</label>
-                    <div class="file-upload" onclick="triggerFileUpload('aadharFront')" ondrop="handleFileDrop(event, 'aadharFront')" ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--fintel-primary);">☁️</div>
-                        <p>Click to upload or drag and drop</p>
-                        <p style="font-size: 0.875rem; color: var(--color-text-secondary);">Image files only • Max 5MB</p>
-                    </div>
-                    <input type="file" id="aadharFrontInput" accept="image/*" style="display: none;" onchange="handleFileSelect(event, 'aadharFront')">
-                    <div id="aadharFrontPreview"></div>
-                    ${errors['documents.aadharFront'] ? `<div class="error-message">${errors['documents.aadharFront']}</div>` : ''}
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Aadhar Card Back *</label>
-                    <div class="file-upload" onclick="triggerFileUpload('aadharBack')" ondrop="handleFileDrop(event, 'aadharBack')" ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--fintel-primary);">☁️</div>
-                        <p>Click to upload or drag and drop</p>
-                        <p style="font-size: 0.875rem; color: var(--color-text-secondary);">Image files only • Max 5MB</p>
-                    </div>
-                    <input type="file" id="aadharBackInput" accept="image/*" style="display: none;" onchange="handleFileSelect(event, 'aadharBack')">
-                    <div id="aadharBackPreview"></div>
-                    ${errors['documents.aadharBack'] ? `<div class="error-message">${errors['documents.aadharBack']}</div>` : ''}
-                </div>
-            </div>
-            <div class="form-row single">
-                <div class="form-group">
-                    <label class="form-label">Resume/CV (PDF)</label>
-                    <div class="file-upload" onclick="triggerFileUpload('resume')" ondrop="handleFileDrop(event, 'resume')" ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
-                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--fintel-primary);">☁️</div>
-                        <p>Click to upload or drag and drop</p>
-                        <p style="font-size: 0.875rem; color: var(--color-text-secondary);">PDF files only • Max 10MB</p>
-                    </div>
-                    <input type="file" id="resumeInput" accept=".pdf" style="display: none;" onchange="handleFileSelect(event, 'resume')">
-                    <div id="resumePreview"></div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function renderTeachingPreferences() {
-    return `
-        <div class="form-section">
-            <h3>🎓 Teaching Preferences</h3>
-            <div class="form-row single">
-                <div class="form-group">
-                    <label class="form-label">Preferred Subjects *</label>
-                    <div class="multi-select" id="subjectsSelect">
-                        <div class="form-control multi-select-input" onclick="toggleDropdown('subjectsSelect')">
-                            ${formData.teachingPreferences.subjects.length === 0 ? 
-                                '<span style="color: var(--color-text-secondary);">Select subjects you\'d like to teach</span>' : 
-                                formData.teachingPreferences.subjects.map(item => `
-                                    <span class="selected-tag">
-                                        ${item}
-                                        <button class="tag-remove" onclick="removeFromMultiSelect('teachingPreferences', 'subjects', '${item.replace(/'/g, "\\'")}'); event.stopPropagation();">×</button>
-                                    </span>
-                                `).join('')
-                            }
-                        </div>
-                        <div class="multi-select-dropdown" id="subjectsDropdown">
-                            ${subjectOptions.map(option => `
-                                <div class="multi-select-option" onclick="toggleMultiSelectOption('teachingPreferences', 'subjects', '${option.replace(/'/g, "\\'")}')">
-                                    <input type="checkbox" ${formData.teachingPreferences.subjects.includes(option) ? 'checked' : ''}> ${option}
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                    ${errors['teachingPreferences.subjects'] ? `<div class="error-message">${errors['teachingPreferences.subjects']}</div>` : ''}
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Preferred Teaching Mode *</label>
-                    <select class="form-control ${errors['teachingPreferences.mode'] ? 'error' : ''}" 
-                            onchange="updateFormData('teachingPreferences', 'mode', this.value)">
-                        <option value="">Select Mode</option>
-                        <option value="Online" ${formData.teachingPreferences.mode === 'Online' ? 'selected' : ''}>Online</option>
-                        <option value="Offline" ${formData.teachingPreferences.mode === 'Offline' ? 'selected' : ''}>Offline</option>
-                        <option value="Hybrid" ${formData.teachingPreferences.mode === 'Hybrid' ? 'selected' : ''}>Hybrid</option>
-                    </select>
-                    ${errors['teachingPreferences.mode'] ? `<div class="error-message">${errors['teachingPreferences.mode']}</div>` : ''}
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Availability</label>
-                    <input type="text" class="form-control" 
-                           value="${formData.teachingPreferences.availability}" 
-                           onchange="updateFormData('teachingPreferences', 'availability', this.value)"
-                           placeholder="e.g., Weekends, Evening hours">
-                </div>
-            </div>
-            <div class="form-row single">
-                <div class="form-group">
-                    <label class="form-label">Expected Monthly Compensation (₹)</label>
-                    <div class="range-slider">
-                        <input type="range" min="10000" max="200000" step="5000" class="range-input" 
-                               value="${formData.teachingPreferences.expectedCompensation}" 
-                               onchange="updateFormData('teachingPreferences', 'expectedCompensation', this.value); updateRangeValue('compensationValue', '₹' + parseInt(this.value).toLocaleString())">
-                        <div class="range-value" id="compensationValue">₹${parseInt(formData.teachingPreferences.expectedCompensation).toLocaleString()}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function renderReview() {
-    return `
-        <div class="form-section">
-            <h3>✅ Review Your Application</h3>
-            <div style="display: grid; gap: 2rem;">
-                <div class="card">
-                    <div class="card__header">
-                        <h4>👤 Personal Information</h4>
-                    </div>
-                    <div class="card__body">
-                        <p><strong>Name:</strong> ${formData.personalInfo.fullName}</p>
-                        <p><strong>Email:</strong> ${formData.personalInfo.email}</p>
-                        <p><strong>Phone:</strong> ${formData.personalInfo.phone}</p>
-                        ${formData.personalInfo.city ? `<p><strong>City:</strong> ${formData.personalInfo.city}</p>` : ''}
-                        ${formData.personalInfo.dob ? `<p><strong>Date of Birth:</strong> ${formData.personalInfo.dob}</p>` : ''}
-                        ${formData.personalInfo.gender ? `<p><strong>Gender:</strong> ${formData.personalInfo.gender}</p>` : ''}
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <div class="card__header">
-                        <h4>💼 Professional Information</h4>
-                    </div>
-                    <div class="card__body">
-                        <p><strong>Designation:</strong> ${formData.professionalInfo.designation}</p>
-                        <p><strong>Organization:</strong> ${formData.professionalInfo.organization}</p>
-                        <p><strong>Experience:</strong> ${formData.professionalInfo.experience} years</p>
-                        <p><strong>Expertise:</strong> ${formData.professionalInfo.expertise.join(', ')}</p>
-                        ${formData.professionalInfo.linkedinProfile ? `<p><strong>LinkedIn:</strong> ${formData.professionalInfo.linkedinProfile}</p>` : ''}
-                        ${formData.professionalInfo.certifications ? `<p><strong>Certifications:</strong> ${formData.professionalInfo.certifications}</p>` : ''}
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <div class="card__header">
-                        <h4>🎓 Teaching Preferences</h4>
-                    </div>
-                    <div class="card__body">
-                        <p><strong>Preferred Subjects:</strong> ${formData.teachingPreferences.subjects.join(', ')}</p>
-                        <p><strong>Teaching Mode:</strong> ${formData.teachingPreferences.mode}</p>
-                        <p><strong>Expected Compensation:</strong> ₹${parseInt(formData.teachingPreferences.expectedCompensation).toLocaleString()}</p>
-                        ${formData.teachingPreferences.availability ? `<p><strong>Availability:</strong> ${formData.teachingPreferences.availability}</p>` : ''}
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card__header">
-                        <h4>📄 Documents Uploaded</h4>
-                    </div>
-                    <div class="card__body">
-                        <p><strong>Photo:</strong> ${formData.documents.photo ? '✅ Uploaded' : '❌ Not uploaded'}</p>
-                        <p><strong>PAN Card:</strong> ${formData.documents.panCard ? '✅ Uploaded' : '❌ Not uploaded'}</p>
-                        <p><strong>Aadhar Front:</strong> ${formData.documents.aadharFront ? '✅ Uploaded' : '❌ Not uploaded'}</p>
-                        <p><strong>Aadhar Back:</strong> ${formData.documents.aadharBack ? '✅ Uploaded' : '❌ Not uploaded'}</p>
-                        <p><strong>Resume:</strong> ${formData.documents.resume ? '✅ Uploaded' : '❌ Not uploaded'}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// =============================================================================
-// FORM HELPER FUNCTIONS
-// =============================================================================
-
-function updateFormData(section, field, value) {
-    try {
-        formData[section][field] = value;
-        console.log(`Updated ${section}.${field}:`, value);
-    } catch (error) {
-        console.error('Error updating form data:', error);
-    }
-}
-
-function updateRangeValue(elementId, value) {
-    try {
-        const element = document.getElementById(elementId);
-        if (element) {
-            element.textContent = value;
-        }
-    } catch (error) {
-        console.error('Error updating range value:', error);
-    }
-}
-
-function clearValidationErrors() {
-    const errorElements = document.querySelectorAll('.form-control.error');
-    errorElements.forEach(element => {
-        element.classList.remove('error');
+// ========== FORM SYSTEM ==========
+function initApplicationForm() {
+  renderExpertiseCheckboxes();
+  renderSubjectCheckboxes();
+  renderDocumentUploads();
+  updateFormProgress();
+  updateFormNavigation();
+  
+  // Fix date field handling
+  const dobField = $('#dob');
+  if (dobField) {
+    dobField.addEventListener('input', function(e) {
+      // Ensure the date value is properly stored
+      formData.personalInfo.dob = e.target.value;
     });
+  }
 }
 
-function initializeInteractiveElements() {
-    Object.keys(formData.documents).forEach(key => {
-        if (formData.documents[key]) {
-            showFilePreview(key, formData.documents[key]);
-        }
-    });
+function renderExpertiseCheckboxes() {
+  const container = $('#expertiseGroup');
+  if (!container) return;
+  
+  container.innerHTML = EXPERTISE_OPTIONS.map(option => `
+    <div class="checkbox-item">
+      <input type="checkbox" id="expertise_${option.replace(/\s+/g, '_')}" 
+             value="${option}" onchange="updateExpertise()">
+      <label for="expertise_${option.replace(/\s+/g, '_')}">${option}</label>
+    </div>
+  `).join('');
 }
 
-// =============================================================================
-// MULTI-SELECT FUNCTIONS
-// =============================================================================
-
-function toggleDropdown(selectId) {
-    try {
-        const dropdown = document.getElementById(selectId.replace('Select', 'Dropdown'));
-        if (dropdown) {
-            dropdown.classList.toggle('open');
-        }
-    } catch (error) {
-        console.error('Error toggling dropdown:', error);
-    }
+function renderSubjectCheckboxes() {
+  const container = $('#subjectsGroup');
+  if (!container) return;
+  
+  container.innerHTML = SUBJECT_OPTIONS.map(option => `
+    <div class="checkbox-item">
+      <input type="checkbox" id="subject_${option.replace(/\s+/g, '_')}" 
+             value="${option}" onchange="updateSubjects()">
+      <label for="subject_${option.replace(/\s+/g, '_')}">${option}</label>
+    </div>
+  `).join('');
 }
 
-function toggleMultiSelectOption(section, field, option) {
-    try {
-        const currentValues = formData[section][field];
-        if (currentValues.includes(option)) {
-            formData[section][field] = currentValues.filter(v => v !== option);
-        } else {
-            formData[section][field] = [...currentValues, option];
-        }
-        renderCurrentStep();
-    } catch (error) {
-        console.error('Error toggling multi-select option:', error);
-    }
+function renderDocumentUploads() {
+  const container = $('#documentUploadGrid');
+  if (!container) return;
+  
+  container.innerHTML = DOCUMENT_TYPES.map(doc => `
+    <div class="document-upload-item" id="upload_${doc.key}">
+      <div class="upload-icon">${doc.icon}</div>
+      <div class="upload-title">${doc.label}</div>
+      <div class="upload-subtitle">
+        ${doc.required ? 'Required' : 'Optional'} • Max 5MB<br>
+        JPG, PNG, PDF
+      </div>
+      <input type="file" class="file-input" accept="image/*,application/pdf" 
+             onchange="handleFileUpload(event, '${doc.key}')">
+      <div class="file-preview" id="preview_${doc.key}" style="display:none;"></div>
+      <div class="file-info" id="info_${doc.key}" style="display:none;"></div>
+      <button class="remove-file" id="remove_${doc.key}" style="display:none;" 
+              onclick="removeFile('${doc.key}')">×</button>
+    </div>
+  `).join('');
 }
 
-function removeFromMultiSelect(section, field, option) {
-    try {
-        formData[section][field] = formData[section][field].filter(v => v !== option);
-        renderCurrentStep();
-    } catch (error) {
-        console.error('Error removing from multi-select:', error);
-    }
+function updateExpertise() {
+  const checkboxes = $all('#expertiseGroup input[type="checkbox"]:checked');
+  formData.professionalInfo.expertise = Array.from(checkboxes).map(cb => cb.value);
 }
 
-// =============================================================================
-// FILE UPLOAD FUNCTIONS
-// =============================================================================
-
-function triggerFileUpload(type) {
-    try {
-        const input = document.getElementById(type + 'Input');
-        if (input) {
-            input.click();
-        }
-    } catch (error) {
-        console.error('Error triggering file upload:', error);
-    }
+function updateSubjects() {
+  const checkboxes = $all('#subjectsGroup input[type="checkbox"]:checked');
+  formData.teachingPreferences.subjects = Array.from(checkboxes).map(cb => cb.value);
 }
 
-function handleFileSelect(event, type) {
-    try {
-        const file = event.target.files[0];
-        if (file && validateFile(file, type)) {
-            formData.documents[type] = file;
-            showFilePreview(type, file);
-        }
-    } catch (error) {
-        console.error('Error handling file select:', error);
-    }
-}
-
-function handleFileDrop(event, type) {
-    event.preventDefault();
-    event.stopPropagation();
+function handleFileUpload(event, docType) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  // Validate file
+  if (file.size > CONFIG.form.maxFileSize) {
+    showToast(`File size must be less than ${CONFIG.form.maxFileSize / (1024*1024)}MB`, 'error');
+    return;
+  }
+  
+  if (!CONFIG.form.allowedTypes.includes(file.type)) {
+    showToast('Please upload JPG, PNG, or PDF files only', 'error');
+    return;
+  }
+  
+  // Convert to base64
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    formData.documents[docType] = {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      data: e.target.result
+    };
     
-    const target = event.currentTarget;
-    target.classList.remove('dragover');
-    
-    try {
-        const file = event.dataTransfer.files[0];
-        if (file && validateFile(file, type)) {
-            formData.documents[type] = file;
-            showFilePreview(type, file);
-            
-            const input = document.getElementById(type + 'Input');
-            if (input) {
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                input.files = dt.files;
-            }
-        }
-    } catch (error) {
-        console.error('Error handling file drop:', error);
-    }
+    updateDocumentPreview(docType, file, e.target.result);
+    showToast(`${file.name} uploaded successfully`, 'success');
+  };
+  
+  reader.readAsDataURL(file);
 }
 
-function handleDragOver(event) {
-    event.preventDefault();
-}
-
-function handleDragEnter(event) {
-    event.preventDefault();
-    event.currentTarget.classList.add('dragover');
-}
-
-function handleDragLeave(event) {
-    event.preventDefault();
-    event.currentTarget.classList.remove('dragover');
-}
-
-function validateFile(file, type) {
-    const maxSize = type === 'resume' ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
-    
-    if (file.size > maxSize) {
-        alert(`File size should not exceed ${type === 'resume' ? '10MB' : '5MB'}`);
-        return false;
-    }
-    
-    if (type === 'resume') {
-        if (file.type !== 'application/pdf') {
-            alert('Please upload a PDF file for resume');
-            return false;
-        }
+function updateDocumentPreview(docType, file, dataUrl) {
+  const uploadItem = $(`#upload_${docType}`);
+  const preview = $(`#preview_${docType}`);
+  const info = $(`#info_${docType}`);
+  const removeBtn = $(`#remove_${docType}`);
+  
+  if (uploadItem) uploadItem.classList.add('uploaded');
+  
+  if (preview) {
+    preview.style.display = 'block';
+    if (file.type.startsWith('image/')) {
+      preview.innerHTML = `<img src="${dataUrl}" class="file-preview" alt="${file.name}">`;
     } else {
-        if (!file.type.startsWith('image/')) {
-            alert('Please upload an image file');
-            return false;
-        }
+      preview.innerHTML = `<div class="document-icon">📄</div>`;
     }
+  }
+  
+  if (info) {
+    info.style.display = 'block';
+    info.innerHTML = `${file.name}<br>${fileSizeReadable(file.size)}`;
+  }
+  
+  if (removeBtn) removeBtn.style.display = 'block';
+}
+
+function removeFile(docType) {
+  formData.documents[docType] = null;
+  
+  const uploadItem = $(`#upload_${docType}`);
+  const preview = $(`#preview_${docType}`);
+  const info = $(`#info_${docType}`);
+  const removeBtn = $(`#remove_${docType}`);
+  const fileInput = $(`#upload_${docType} .file-input`);
+  
+  if (uploadItem) uploadItem.classList.remove('uploaded');
+  if (preview) preview.style.display = 'none';
+  if (info) info.style.display = 'none';
+  if (removeBtn) removeBtn.style.display = 'none';
+  if (fileInput) fileInput.value = '';
+  
+  showToast('File removed', 'info');
+}
+
+function changeStep(direction) {
+  if (direction > 0 && !validateCurrentStep()) {
+    return;
+  }
+  
+  collectCurrentStepData();
+  
+  const newStep = currentStep + direction;
+  if (newStep >= 0 && newStep < 4) {
+    currentStep = newStep;
+    updateFormProgress();
+    updateFormNavigation();
+    populateFormFields();
     
-    return true;
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 }
 
-function showFilePreview(type, file) {
-    try {
-        const previewDiv = document.getElementById(type + 'Preview');
-        if (!previewDiv) return;
-        
-        if (file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                previewDiv.innerHTML = `
-                    <div class="file-preview">
-                        <div class="file-item">
-                            <img src="${e.target.result}" alt="Preview" style="width: 100%; height: 100%; object-fit: cover;">
-                            <button class="file-remove" onclick="removeFile('${type}')">×</button>
-                        </div>
-                    </div>
-                `;
-            };
-            reader.readAsDataURL(file);
-        } else {
-            previewDiv.innerHTML = `
-                <div class="file-preview">
-                    <div class="file-item">
-                        <div style="padding: 1rem; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center;">
-                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📄</div>
-                            <p style="font-size: 0.75rem; word-break: break-all; margin: 0;">${file.name}</p>
-                        </div>
-                        <button class="file-remove" onclick="removeFile('${type}')">×</button>
-                    </div>
-                </div>
-            `;
-        }
-    } catch (error) {
-        console.error('Error showing file preview:', error);
-    }
+function validateCurrentStep() {
+  const errors = [];
+  
+  switch (currentStep) {
+    case 0: // Personal Info
+      if (!$('#fullName')?.value.trim()) errors.push('Full Name is required');
+      if (!$('#email')?.value.trim()) errors.push('Email is required');
+      if (!$('#phone')?.value.trim()) errors.push('Phone is required');
+      if (!$('#city')?.value.trim()) errors.push('City is required');
+      break;
+      
+    case 1: // Professional Info
+      if (!$('#designation')?.value.trim()) errors.push('Designation is required');
+      if (!$('#organization')?.value.trim()) errors.push('Organization is required');
+      if (!$('#experience')?.value) errors.push('Experience is required');
+      if (!$('#qualifications')?.value.trim()) errors.push('Qualifications are required');
+      if (formData.professionalInfo.expertise.length === 0) {
+        errors.push('Please select at least one area of expertise');
+      }
+      break;
+      
+    case 2: // Documents
+      const missingDocs = CONFIG.form.requiredDocuments.filter(docKey => !formData.documents[docKey]);
+      if (missingDocs.length > 0) {
+        errors.push(`Missing required documents: ${missingDocs.map(key => 
+          DOCUMENT_TYPES.find(d => d.key === key)?.label
+        ).join(', ')}`);
+      }
+      break;
+      
+    case 3: // Teaching Preferences
+      if (!$('#teachingMode')?.value) errors.push('Teaching mode is required');
+      if (formData.teachingPreferences.subjects.length === 0) {
+        errors.push('Please select at least one subject to teach');
+      }
+      break;
+  }
+  
+  if (errors.length > 0) {
+    showToast(errors[0], 'error');
+    return false;
+  }
+  
+  return true;
 }
 
-function removeFile(type) {
-    try {
-        formData.documents[type] = null;
-        
-        const previewDiv = document.getElementById(type + 'Preview');
-        if (previewDiv) {
-            previewDiv.innerHTML = '';
-        }
-        
-        const inputElement = document.getElementById(type + 'Input');
-        if (inputElement) {
-            inputElement.value = '';
-        }
-    } catch (error) {
-        console.error('Error removing file:', error);
-    }
+function collectCurrentStepData() {
+  switch (currentStep) {
+    case 0: // Personal Info
+      formData.personalInfo = {
+        fullName: $('#fullName')?.value.trim() || '',
+        email: $('#email')?.value.trim() || '',
+        phone: $('#phone')?.value.trim() || '',
+        dob: $('#dob')?.value || '',
+        gender: $('#gender')?.value || '',
+        address: $('#address')?.value.trim() || '',
+        city: $('#city')?.value.trim() || '',
+        state: $('#state')?.value || '',
+        pincode: $('#pincode')?.value || ''
+      };
+      break;
+      
+    case 1: // Professional Info
+      formData.professionalInfo = {
+        ...formData.professionalInfo,
+        designation: $('#designation')?.value.trim() || '',
+        organization: $('#organization')?.value.trim() || '',
+        experience: $('#experience')?.value || '',
+        qualifications: $('#qualifications')?.value.trim() || '',
+        certifications: $('#certifications')?.value.trim() || '',
+        linkedinProfile: $('#linkedinProfile')?.value.trim() || '',
+        bio: $('#bio')?.value.trim() || ''
+      };
+      break;
+      
+    case 3: // Teaching Preferences
+      formData.teachingPreferences = {
+        ...formData.teachingPreferences,
+        mode: $('#teachingMode')?.value || '',
+        availability: $('#availability')?.value.trim() || '',
+        expectedCompensation: $('#expectedCompensation')?.value || ''
+      };
+      break;
+  }
 }
 
-// =============================================================================
-// FORM NAVIGATION & VALIDATION
-// =============================================================================
-
-function nextStep() {
-    try {
-        if (currentStep === steps.length - 1) {
-            // This is the submit button
-            submitApplication();
-        } else {
-            // Validate current step
-            if (validateStep(currentStep)) {
-                currentStep = Math.min(currentStep + 1, steps.length - 1);
-                renderProgressBar();
-                renderCurrentStep();
-                window.scrollTo(0, 0);
-            } else {
-                renderCurrentStep(); // Re-render to show validation errors
-            }
-        }
-    } catch (error) {
-        console.error('Error navigating to next step:', error);
-    }
+function populateFormFields() {
+  switch (currentStep) {
+    case 0: // Personal Info
+      const pi = formData.personalInfo;
+      if ($('#fullName')) $('#fullName').value = pi.fullName || '';
+      if ($('#email')) $('#email').value = pi.email || '';
+      if ($('#phone')) $('#phone').value = pi.phone || '';
+      if ($('#dob')) $('#dob').value = pi.dob || '';
+      if ($('#gender')) $('#gender').value = pi.gender || '';
+      if ($('#address')) $('#address').value = pi.address || '';
+      if ($('#city')) $('#city').value = pi.city || '';
+      if ($('#state')) $('#state').value = pi.state || '';
+      if ($('#pincode')) $('#pincode').value = pi.pincode || '';
+      break;
+      
+    case 1: // Professional Info
+      const prof = formData.professionalInfo;
+      if ($('#designation')) $('#designation').value = prof.designation || '';
+      if ($('#organization')) $('#organization').value = prof.organization || '';
+      if ($('#experience')) $('#experience').value = prof.experience || '';
+      if ($('#qualifications')) $('#qualifications').value = prof.qualifications || '';
+      if ($('#certifications')) $('#certifications').value = prof.certifications || '';
+      if ($('#linkedinProfile')) $('#linkedinProfile').value = prof.linkedinProfile || '';
+      if ($('#bio')) $('#bio').value = prof.bio || '';
+      
+      // Restore expertise checkboxes
+      prof.expertise.forEach(expertise => {
+        const checkbox = $(`#expertise_${expertise.replace(/\s+/g, '_')}`);
+        if (checkbox) checkbox.checked = true;
+      });
+      break;
+      
+    case 3: // Teaching Preferences
+      const tp = formData.teachingPreferences;
+      if ($('#teachingMode')) $('#teachingMode').value = tp.mode || '';
+      if ($('#availability')) $('#availability').value = tp.availability || '';
+      if ($('#expectedCompensation')) $('#expectedCompensation').value = tp.expectedCompensation || '';
+      
+      // Restore subject checkboxes
+      tp.subjects.forEach(subject => {
+        const checkbox = $(`#subject_${subject.replace(/\s+/g, '_')}`);
+        if (checkbox) checkbox.checked = true;
+      });
+      break;
+  }
 }
 
-function prevStep() {
-    try {
-        currentStep = Math.max(currentStep - 1, 0);
-        renderProgressBar();
-        renderCurrentStep();
-        window.scrollTo(0, 0);
-    } catch (error) {
-        console.error('Error navigating to previous step:', error);
+function updateFormProgress() {
+  const steps = $all('.step');
+  steps.forEach((step, index) => {
+    step.classList.remove('active', 'completed');
+    if (index === currentStep) {
+      step.classList.add('active');
+    } else if (index < currentStep) {
+      step.classList.add('completed');
     }
+  });
+  
+  const formSteps = $all('.form-step');
+  formSteps.forEach((step, index) => {
+    step.classList.remove('active');
+    if (index === currentStep) {
+      step.classList.add('active');
+    }
+  });
 }
 
-function validateStep(step) {
-    errors = {};
-    let isValid = true;
-    
-    switch (step) {
-        case 0: // Personal Info
-            if (!formData.personalInfo.fullName.trim()) {
-                errors['personalInfo.fullName'] = 'Full name is required';
-                isValid = false;
-            }
-            if (!formData.personalInfo.email.trim()) {
-                errors['personalInfo.email'] = 'Email is required';
-                isValid = false;
-            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.personalInfo.email)) {
-                errors['personalInfo.email'] = 'Please enter a valid email address';
-                isValid = false;
-            }
-            if (!formData.personalInfo.phone.trim()) {
-                errors['personalInfo.phone'] = 'Phone number is required';
-                isValid = false;
-            } else if (!/^[0-9]{10}$/.test(formData.personalInfo.phone.replace(/\D/g, ''))) {
-                errors['personalInfo.phone'] = 'Please enter a valid 10-digit phone number';
-                isValid = false;
-            }
-            break;
-            
-        case 1: // Professional Info
-            if (!formData.professionalInfo.designation.trim()) {
-                errors['professionalInfo.designation'] = 'Current designation is required';
-                isValid = false;
-            }
-            if (!formData.professionalInfo.organization.trim()) {
-                errors['professionalInfo.organization'] = 'Organization/Institution is required';
-                isValid = false;
-            }
-            if (formData.professionalInfo.expertise.length === 0) {
-                errors['professionalInfo.expertise'] = 'Please select at least one area of expertise';
-                isValid = false;
-            }
-            break;
-            
-        case 2: // Documents
-            if (!formData.documents.photo) {
-                errors['documents.photo'] = 'Passport size photo is required';
-                isValid = false;
-            }
-            if (!formData.documents.panCard) {
-                errors['documents.panCard'] = 'PAN card is required';
-                isValid = false;
-            }
-            if (!formData.documents.aadharFront) {
-                errors['documents.aadharFront'] = 'Aadhar card front is required';
-                isValid = false;
-            }
-            if (!formData.documents.aadharBack) {
-                errors['documents.aadharBack'] = 'Aadhar card back is required';
-                isValid = false;
-            }
-            break;
-            
-        case 3: // Teaching Preferences
-            if (formData.teachingPreferences.subjects.length === 0) {
-                errors['teachingPreferences.subjects'] = 'Please select at least one subject you\'d like to teach';
-                isValid = false;
-            }
-            if (!formData.teachingPreferences.mode.trim()) {
-                errors['teachingPreferences.mode'] = 'Please select a preferred teaching mode';
-                isValid = false;
-            }
-            break;
+function updateFormNavigation() {
+  const prevBtn = $('#prevBtn');
+  const nextBtn = $('#nextBtn');
+  const submitBtn = $('#submitBtn');
+  
+  if (prevBtn) {
+    prevBtn.style.display = currentStep === 0 ? 'none' : 'inline-flex';
+  }
+  
+  if (nextBtn && submitBtn) {
+    if (currentStep === 3) {
+      nextBtn.style.display = 'none';
+      submitBtn.style.display = 'inline-flex';
+    } else {
+      nextBtn.style.display = 'inline-flex';
+      submitBtn.style.display = 'none';
     }
-    
-    return isValid;
+  }
 }
 
 async function submitApplication() {
-    try {
-        const nextBtn = document.getElementById('nextBtn');
-        if (nextBtn) {
-            nextBtn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; margin-right: 8px;"></div>Submitting...';
-            nextBtn.disabled = true;
-        }
-        
-        // Create application object
-        const application = {
-            id: generateId(),
-            ...JSON.parse(JSON.stringify(formData)), // Deep clone
-            applicationStatus: 'Pending',
-            submissionDate: new Date().toISOString(),
-            adminNotes: ''
-        };
-        
-        // Convert files to base64 for storage
-        const documentsWithBase64 = {};
-        for (const [key, file] of Object.entries(formData.documents)) {
-            if (file) {
-                documentsWithBase64[key] = {
-                    name: file.name,
-                    type: file.type,
-                    size: file.size,
-                    data: await fileToBase64(file)
-                };
-            } else {
-                documentsWithBase64[key] = null;
-            }
-        }
-        application.documents = documentsWithBase64;
-        
-        // Load existing applications and add new one
-        const existingApplications = await loadFromGlobalDB();
-        const updatedApplications = [...existingApplications, application];
-        
-        // Save to global database
-        await saveToGlobalDB(updatedApplications);
-        
-        console.log('Application submitted successfully');
-        showPage('success');
-        
-    } catch (error) {
-        console.error('Error submitting application:', error);
-        alert('There was an error submitting your application. Please try again.');
-        
-        const nextBtn = document.getElementById('nextBtn');
-        if (nextBtn) {
-            nextBtn.innerHTML = '📤 Submit Application';
-            nextBtn.disabled = false;
-        }
-    }
+  if (!validateCurrentStep()) return;
+  
+  collectCurrentStepData();
+  
+  // Final validation
+  if (!formData.personalInfo.fullName || !formData.personalInfo.email) {
+    showToast('Please fill in all required fields', 'error');
+    return;
+  }
+  
+  showLoading('Submitting your application to global database...');
+  
+  try {
+    // Create application object
+    const application = {
+      id: generateId(),
+      ...formData,
+      applicationStatus: 'Pending',
+      submissionDate: new Date().toISOString(),
+      adminNotes: ''
+    };
+    
+    // Save to global storage
+    await globalStorage.save(application);
+    
+    // Send admin notification email
+    await sendAdminNotification(application);
+    
+    hideLoading();
+    showToast('Application submitted successfully!', 'success');
+    
+    // Reset form and show success page
+    formData = getEmptyFormData();
+    currentStep = 0;
+    showPage('success');
+    
+  } catch (error) {
+    hideLoading();
+    console.error('Submission error:', error);
+    showToast('Application submitted but may need manual review. Admin has been notified.', 'warning');
+    showPage('success');
+  }
 }
 
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
+async function sendAdminNotification(application) {
+  try {
+    const formData = new FormData();
+    formData.append('_subject', 'New Faculty Application Submitted - Fintelligence Academy');
+    formData.append('_template', 'table');
+    formData.append('_captcha', 'false');
+    formData.append('applicant_name', application.personalInfo.fullName);
+    formData.append('applicant_email', application.personalInfo.email);
+    formData.append('applicant_phone', application.personalInfo.phone);
+    formData.append('designation', application.professionalInfo.designation);
+    formData.append('organization', application.professionalInfo.organization);
+    formData.append('experience', application.professionalInfo.experience);
+    formData.append('expertise', application.professionalInfo.expertise.join(', '));
+    formData.append('subjects', application.teachingPreferences.subjects.join(', '));
+    formData.append('teaching_mode', application.teachingPreferences.mode);
+    formData.append('application_id', application.id);
+    formData.append('submission_time', formatDate(application.submissionDate));
+    
+    await fetch(CONFIG.storage.formsubmit.endpoint, {
+      method: 'POST',
+      body: formData
     });
+  } catch (error) {
+    console.warn('Admin notification failed:', error);
+  }
 }
 
-// =============================================================================
-// ADMIN DASHBOARD FUNCTIONS
-// =============================================================================
-
-async function loadApplications() {
-    try {
-        applications = await loadFromGlobalDB();
-        console.log('Loaded applications:', applications.length);
-    } catch (error) {
-        console.error('Error loading applications:', error);
-        applications = [];
+// ========== ADMIN AUTHENTICATION ==========
+function adminLogin(event) {
+  event.preventDefault();
+  
+  const emailInput = $('#adminEmail');
+  const passwordInput = $('#adminPassword');
+  const errorDiv = $('#loginError');
+  
+  if (!emailInput || !passwordInput) return;
+  
+  const email = emailInput.value.trim();
+  const password = passwordInput.value.trim();
+  
+  if (email === CONFIG.admin.email && password === CONFIG.admin.password) {
+    localStorage.setItem('fintelligence-admin-token', 'token-' + Date.now());
+    isLoggedIn = true;
+    errorDiv?.classList.add('hidden');
+    showToast('Login successful', 'success');
+    showPage('admin');
+  } else {
+    if (errorDiv) {
+      errorDiv.textContent = 'Invalid credentials. Please try again.';
+      errorDiv.classList.remove('hidden');
     }
+    showToast('Invalid login credentials', 'error');
+  }
 }
 
-async function initializeDashboard() {
-    try {
-        await loadApplications();
-        renderDashboardStats();
-        filterApplications();
-        console.log('Dashboard initialized');
-    } catch (error) {
-        console.error('Error initializing dashboard:', error);
-    }
+function logout() { 
+  localStorage.removeItem('fintelligence-admin-token'); 
+  isLoggedIn = false; 
+  showToast('Logged out successfully', 'info');
+  showLanding(); 
 }
 
-function renderDashboardStats() {
-    try {
-        const stats = {
-            total: applications.length,
-            pending: applications.filter(app => app.applicationStatus === 'Pending').length,
-            underReview: applications.filter(app => app.applicationStatus === 'Under Review').length,
-            approved: applications.filter(app => app.applicationStatus === 'Approved').length,
-            rejected: applications.filter(app => app.applicationStatus === 'Rejected').length
-        };
+// ========== ADMIN DASHBOARD ==========
+async function initDashboard() {
+  showLoading('Loading applications from global database...');
+  
+  try {
+    applications = await globalStorage.load();
+    renderStats();
+    filterApplications();
+    hideLoading();
+    showToast('Dashboard loaded successfully', 'success');
+  } catch (error) {
+    console.error('Dashboard initialization error:', error);
+    hideLoading();
+    showToast('Error loading applications', 'error');
+  }
+}
 
-        const statsContainer = document.getElementById('dashboardStats');
-        if (statsContainer) {
-            statsContainer.innerHTML = `
-                <div class="stat-card">
-                    <div class="stat-number">${stats.total}</div>
-                    <div class="stat-label">Total Applications</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" style="color: #F59E0B">${stats.pending}</div>
-                    <div class="stat-label">Pending Review</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" style="color: #3B82F6">${stats.underReview}</div>
-                    <div class="stat-label">Under Review</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" style="color: #22C55E">${stats.approved}</div>
-                    <div class="stat-label">Approved</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" style="color: #EF4444">${stats.rejected}</div>
-                    <div class="stat-label">Rejected</div>
-                </div>
-            `;
-        }
-    } catch (error) {
-        console.error('Error rendering dashboard stats:', error);
-    }
+function renderStats() {
+  const stats = { 
+    total: applications.length,
+    pending: applications.filter(a => a.applicationStatus === 'Pending').length,
+    approved: applications.filter(a => a.applicationStatus === 'Approved').length,
+    rejected: applications.filter(a => a.applicationStatus === 'Rejected').length,
+    underReview: applications.filter(a => a.applicationStatus === 'Under Review').length
+  };
+
+  const statsHtml = `
+    <div class="stat-card">
+      <div class="stat-number">${stats.total}</div>
+      <div class="stat-label">Total Applications</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" style="color: var(--color-warning);">${stats.pending}</div>
+      <div class="stat-label">Pending Review</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" style="color: var(--color-info);">${stats.underReview}</div>
+      <div class="stat-label">Under Review</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" style="color: var(--color-success);">${stats.approved}</div>
+      <div class="stat-label">Approved</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" style="color: var(--color-error);">${stats.rejected}</div>
+      <div class="stat-label">Rejected</div>
+    </div>
+  `;
+
+  const statsContainer = $('#dashboardStats');
+  if (statsContainer) {
+    statsContainer.innerHTML = statsHtml;
+  }
 }
 
 function filterApplications() {
-    try {
-        const searchInput = document.getElementById('searchInput');
-        const statusFilter = document.getElementById('statusFilter');
-        
-        if (!searchInput || !statusFilter) return;
-        
-        const searchTerm = searchInput.value.toLowerCase();
-        const statusFilterValue = statusFilter.value;
-        
-        filteredApplications = applications.filter(app => {
-            const matchesSearch = !searchTerm || 
-                app.personalInfo.fullName.toLowerCase().includes(searchTerm) ||
-                app.personalInfo.email.toLowerCase().includes(searchTerm) ||
-                app.professionalInfo.organization.toLowerCase().includes(searchTerm) ||
-                app.professionalInfo.designation.toLowerCase().includes(searchTerm);
-            
-            const matchesStatus = !statusFilterValue || app.applicationStatus === statusFilterValue;
-            
-            return matchesSearch && matchesStatus;
-        });
-        
-        renderApplicationsTable();
-    } catch (error) {
-        console.error('Error filtering applications:', error);
-    }
+  const searchInput = $('#searchInput');
+  const statusFilter = $('#statusFilter');
+  
+  const query = searchInput ? searchInput.value.toLowerCase() : '';
+  const status = statusFilter ? statusFilter.value : '';
+  
+  filteredApplications = applications.filter(app => {
+    const searchMatch = !query || 
+      app.personalInfo.fullName.toLowerCase().includes(query) || 
+      app.personalInfo.email.toLowerCase().includes(query) ||
+      app.professionalInfo.designation.toLowerCase().includes(query);
+    
+    const statusMatch = !status || app.applicationStatus === status;
+    
+    return searchMatch && statusMatch;
+  });
+  
+  renderApplicationsTable();
+}
+
+function docsCompletion(app) {
+  const total = DOCUMENT_TYPES.length;
+  const uploaded = DOCUMENT_TYPES.filter(dt => app.documents[dt.key]).length;
+  return `${uploaded}/${total}`;
 }
 
 function renderApplicationsTable() {
-    try {
-        const tbody = document.getElementById('applicationsTable');
-        const emptyState = document.getElementById('emptyState');
-        
-        if (!tbody || !emptyState) return;
-        
-        if (filteredApplications.length === 0) {
-            tbody.innerHTML = '';
-            emptyState.classList.remove('hidden');
-        } else {
-            emptyState.classList.add('hidden');
-            tbody.innerHTML = filteredApplications.map(app => `
-                <tr>
-                    <td>${app.personalInfo.fullName}</td>
-                    <td>${app.personalInfo.email}</td>
-                    <td>${app.professionalInfo.designation}</td>
-                    <td>${app.professionalInfo.experience} years</td>
-                    <td>
-                        <span class="status-badge status-${app.applicationStatus.toLowerCase().replace(' ', '-')}">
-                            ${app.applicationStatus}
-                        </span>
-                    </td>
-                    <td>${new Date(app.submissionDate).toLocaleDateString()}</td>
-                    <td>
-                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                            <button class="btn btn--secondary btn--sm" onclick="viewApplication('${app.id}')">
-                                👁️ View
-                            </button>
-                            <select class="form-control" style="padding: 0.25rem; font-size: 0.75rem; min-width: 100px;" 
-                                    onchange="updateApplicationStatus('${app.id}', this.value)">
-                                <option value="Pending" ${app.applicationStatus === 'Pending' ? 'selected' : ''}>Pending</option>
-                                <option value="Under Review" ${app.applicationStatus === 'Under Review' ? 'selected' : ''}>Under Review</option>
-                                <option value="Approved" ${app.applicationStatus === 'Approved' ? 'selected' : ''}>Approved</option>
-                                <option value="Rejected" ${app.applicationStatus === 'Rejected' ? 'selected' : ''}>Rejected</option>
-                            </select>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-        }
-    } catch (error) {
-        console.error('Error rendering applications table:', error);
-    }
-}
-
-async function updateApplicationStatus(id, status) {
-    try {
-        showLoading('Updating status...');
-        
-        applications = applications.map(app =>
-            app.id === id ? { ...app, applicationStatus: status } : app
-        );
-        
-        await saveToGlobalDB(applications);
-        renderDashboardStats();
-        filterApplications();
-        
-        console.log(`Updated application ${id} status to ${status}`);
-    } catch (error) {
-        console.error('Error updating application status:', error);
-        alert('Error updating status. Please try again.');
-    }
-}
-
-function viewApplication(id) {
-    try {
-        const application = applications.find(app => app.id === id);
-        if (!application) return;
-        
-        const modalBody = document.getElementById('modalBody');
-        if (!modalBody) return;
-        
-        modalBody.innerHTML = `
-            <div style="display: grid; gap: 2rem;">
-                <div class="card">
-                    <div class="card__header">
-                        <h4>👤 Personal Information</h4>
-                    </div>
-                    <div class="card__body">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
-                            <div><strong>Name:</strong> ${application.personalInfo.fullName}</div>
-                            <div><strong>Email:</strong> ${application.personalInfo.email}</div>
-                            <div><strong>Phone:</strong> ${application.personalInfo.phone}</div>
-                            <div><strong>City:</strong> ${application.personalInfo.city || 'Not provided'}</div>
-                            <div><strong>Gender:</strong> ${application.personalInfo.gender || 'Not provided'}</div>
-                            <div><strong>DOB:</strong> ${application.personalInfo.dob || 'Not provided'}</div>
-                        </div>
-                        ${application.personalInfo.address ? `<div style="margin-top: 1rem;"><strong>Address:</strong> ${application.personalInfo.address}</div>` : ''}
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card__header">
-                        <h4>💼 Professional Information</h4>
-                    </div>
-                    <div class="card__body">
-                        <div style="display: grid; gap: 1rem;">
-                            <div><strong>Designation:</strong> ${application.professionalInfo.designation}</div>
-                            <div><strong>Organization:</strong> ${application.professionalInfo.organization}</div>
-                            <div><strong>Experience:</strong> ${application.professionalInfo.experience} years</div>
-                            <div><strong>Areas of Expertise:</strong><br/>${application.professionalInfo.expertise.join(', ')}</div>
-                            ${application.professionalInfo.linkedinProfile ? `<div><strong>LinkedIn:</strong> <a href="${application.professionalInfo.linkedinProfile}" target="_blank">${application.professionalInfo.linkedinProfile}</a></div>` : ''}
-                            ${application.professionalInfo.certifications ? `<div><strong>Certifications:</strong> ${application.professionalInfo.certifications}</div>` : ''}
-                            ${application.professionalInfo.bio ? `<div><strong>Bio:</strong><br/><p style="margin-top: 0.5rem; line-height: 1.6;">${application.professionalInfo.bio}</p></div>` : ''}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card__header">
-                        <h4>🎓 Teaching Preferences</h4>
-                    </div>
-                    <div class="card__body">
-                        <div style="display: grid; gap: 1rem;">
-                            <div><strong>Preferred Subjects:</strong><br/>${application.teachingPreferences.subjects.join(', ')}</div>
-                            <div><strong>Teaching Mode:</strong> ${application.teachingPreferences.mode}</div>
-                            <div><strong>Expected Compensation:</strong> ₹${parseInt(application.teachingPreferences.expectedCompensation).toLocaleString()}</div>
-                            ${application.teachingPreferences.availability ? `<div><strong>Availability:</strong> ${application.teachingPreferences.availability}</div>` : ''}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card__header">
-                        <h4>📄 Documents</h4>
-                    </div>
-                    <div class="card__body">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-                            ${renderDocumentPreview('Photo', application.documents.photo)}
-                            ${renderDocumentPreview('PAN Card', application.documents.panCard)}
-                            ${renderDocumentPreview('Aadhar Front', application.documents.aadharFront)}
-                            ${renderDocumentPreview('Aadhar Back', application.documents.aadharBack)}
-                            ${renderDocumentPreview('Resume', application.documents.resume)}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card__header">
-                        <h4>📊 Application Status</h4>
-                    </div>
-                    <div class="card__body">
-                        <div style="display: grid; gap: 1rem;">
-                            <div><strong>Status:</strong> <span class="status-badge status-${application.applicationStatus.toLowerCase().replace(' ', '-')}">${application.applicationStatus}</span></div>
-                            <div><strong>Submitted:</strong> ${new Date(application.submissionDate).toLocaleDateString()} at ${new Date(application.submissionDate).toLocaleTimeString()}</div>
-                            <div><strong>Application ID:</strong> ${application.id}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        document.getElementById('applicationModal').classList.remove('hidden');
-    } catch (error) {
-        console.error('Error viewing application:', error);
-    }
-}
-
-function renderDocumentPreview(title, doc) {
-    if (!doc) {
-        return `
-            <div style="text-align: center; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-base);">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem; color: var(--color-text-secondary);">❌</div>
-                <p style="margin: 0; font-weight: 500;">${title}</p>
-                <p style="margin: 0; font-size: 0.875rem; color: var(--color-text-secondary);">Not uploaded</p>
-            </div>
-        `;
-    }
-    
-    const isImage = doc.type && doc.type.startsWith('image/');
+  const tableBody = $('#applicationsTable');
+  const emptyState = $('#emptyState');
+  
+  if (!tableBody || !emptyState) return;
+  
+  if (filteredApplications.length === 0) {
+    tableBody.innerHTML = '';
+    emptyState.classList.remove('hidden');
+    return;
+  }
+  
+  emptyState.classList.add('hidden');
+  
+  const rows = filteredApplications.map(app => {
+    const docStatus = docsCompletion(app);
+    const docClass = docStatus === '5/5' ? 'doc-status-complete' : 'doc-status-incomplete';
     
     return `
-        <div style="text-align: center; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-base);">
-            ${isImage ? 
-                `<img src="${doc.data}" alt="${title}" style="width: 100%; max-width: 150px; height: 100px; object-fit: cover; border-radius: var(--radius-sm); margin-bottom: 0.5rem;">` :
-                `<div style="font-size: 2rem; margin-bottom: 0.5rem; color: var(--fintel-primary);">📄</div>`
-            }
-            <p style="margin: 0; font-weight: 500;">${title}</p>
-            <p style="margin: 0; font-size: 0.875rem; color: var(--color-text-secondary);">${doc.name}</p>
-            <a href="${doc.data}" download="${doc.name}" style="display: inline-block; margin-top: 0.5rem; font-size: 0.875rem;">⬇️ Download</a>
-        </div>
+      <tr>
+        <td>
+          <div style="font-weight: 500;">${app.personalInfo.fullName}</div>
+          <div style="font-size: 12px; color: var(--color-text-secondary);">
+            ID: ${app.id}
+          </div>
+        </td>
+        <td>
+          <div>${app.personalInfo.email}</div>
+          <div style="font-size: 12px; color: var(--color-text-secondary);">
+            ${app.personalInfo.phone}
+          </div>
+        </td>
+        <td>
+          <div style="font-weight: 500;">${app.professionalInfo.designation}</div>
+          <div style="font-size: 12px; color: var(--color-text-secondary);">
+            ${app.professionalInfo.organization}
+          </div>
+        </td>
+        <td>${app.professionalInfo.experience}</td>
+        <td>
+          <span class="status-badge status-${app.applicationStatus.toLowerCase().replace(/ /g, '-')}">
+            ${app.applicationStatus}
+          </span>
+        </td>
+        <td><span class="doc-status-indicator ${docClass}">${docStatus}</span></td>
+        <td style="white-space: nowrap;">
+          <button class="btn btn--secondary btn--sm" onclick="viewApplication('${app.id}')" title="View Details">👁️</button>
+          <button class="btn btn--outline btn--sm" onclick="editApplicationStatus('${app.id}')" title="Update Status">✏️</button>
+          <button class="btn btn--outline btn--sm" onclick="downloadAllDocs('${app.id}')" title="Download Documents">📦</button>
+        </td>
+      </tr>
     `;
+  }).join('');
+  
+  tableBody.innerHTML = rows;
 }
 
-function closeModal() {
-    try {
-        document.getElementById('applicationModal').classList.add('hidden');
-    } catch (error) {
-        console.error('Error closing modal:', error);
+// ========== APPLICATION MANAGEMENT ==========
+function viewApplication(id) {
+  const app = applications.find(a => a.id === id);
+  if (!app) return;
+  
+  const modalBody = $('#modalBody');
+  if (!modalBody) return;
+  
+  modalBody.innerHTML = `
+    <div class="card">
+      <div class="card__header">
+        <h4>Personal Information</h4>
+      </div>
+      <div class="card__body">
+        <div class="form-row">
+          <div><strong>Name:</strong> ${app.personalInfo.fullName}</div>
+          <div><strong>Email:</strong> ${app.personalInfo.email}</div>
+        </div>
+        <div class="form-row">
+          <div><strong>Phone:</strong> ${app.personalInfo.phone}</div>
+          <div><strong>City:</strong> ${app.personalInfo.city}</div>
+        </div>
+        ${app.personalInfo.address ? `<p><strong>Address:</strong> ${app.personalInfo.address}</p>` : ''}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header">
+        <h4>Professional Information</h4>
+      </div>
+      <div class="card__body">
+        <div class="form-row">
+          <div><strong>Designation:</strong> ${app.professionalInfo.designation}</div>
+          <div><strong>Organization:</strong> ${app.professionalInfo.organization}</div>
+        </div>
+        <div class="form-row">
+          <div><strong>Experience:</strong> ${app.professionalInfo.experience}</div>
+          <div><strong>LinkedIn:</strong> 
+            ${app.professionalInfo.linkedinProfile ? 
+              `<a href="${app.professionalInfo.linkedinProfile}" target="_blank">View Profile</a>` : 
+              'Not provided'
+            }
+          </div>
+        </div>
+        <p><strong>Expertise:</strong> ${app.professionalInfo.expertise.join(', ') || 'Not specified'}</p>
+        <p><strong>Qualifications:</strong> ${app.professionalInfo.qualifications}</p>
+        ${app.professionalInfo.bio ? `<p><strong>Bio:</strong> ${app.professionalInfo.bio}</p>` : ''}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header">
+        <h4>Teaching Preferences</h4>
+      </div>
+      <div class="card__body">
+        <div class="form-row">
+          <div><strong>Mode:</strong> ${app.teachingPreferences.mode}</div>
+          <div><strong>Expected Compensation:</strong> ${app.teachingPreferences.expectedCompensation || 'Not specified'}</div>
+        </div>
+        <p><strong>Subjects:</strong> ${app.teachingPreferences.subjects.join(', ') || 'Not specified'}</p>
+        ${app.teachingPreferences.availability ? `<p><strong>Availability:</strong> ${app.teachingPreferences.availability}</p>` : ''}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header">
+        <h4>Documents (${docsCompletion(app)})</h4>
+      </div>
+      <div class="card__body">
+        <div class="document-gallery">
+          ${DOCUMENT_TYPES.map(dt => renderDocumentCard(app, dt)).join('')}
+        </div>
+        <div style="text-align: center; margin-top: 16px;">
+          <button class="btn btn--primary" onclick="downloadAllDocs('${app.id}')">📦 Download All as ZIP</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header">
+        <h4>Application Status</h4>
+      </div>
+      <div class="card__body">
+        <div class="form-row">
+          <div><strong>Status:</strong> <span class="status-badge status-${app.applicationStatus.toLowerCase().replace(/ /g, '-')}">${app.applicationStatus}</span></div>
+          <div><strong>Submitted:</strong> ${formatDate(app.submissionDate)}</div>
+        </div>
+        ${app.adminNotes ? `<p><strong>Admin Notes:</strong> ${app.adminNotes}</p>` : ''}
+        <div style="margin-top: 16px;">
+          <button class="btn btn--outline" onclick="editApplicationStatus('${app.id}'); closeModal();">Update Status</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  $('#applicationModal')?.classList.remove('hidden');
+}
+
+function renderDocumentCard(app, dt) {
+  const doc = app.documents[dt.key];
+  
+  if (doc) {
+    const isImage = doc.type.startsWith('image/');
+    const preview = isImage 
+      ? `<img src="${doc.data}" class="document-preview" alt="${dt.label}">`
+      : `<div class="document-icon">${dt.icon}</div>`;
+    
+    return `
+      <div class="document-card" title="${doc.name} – ${fileSizeReadable(doc.size)}">
+        ${preview}
+        <div class="document-label">${dt.label}</div>
+        <div class="document-actions">
+          <button class="btn btn--outline btn--sm" onclick="downloadDocument('${app.id}','${dt.key}')" title="Download">📥</button>
+          <button class="btn btn--secondary btn--sm" onclick="openFullView('${doc.data}')" title="View Full Size">🔍</button>
+        </div>
+        <div class="document-status uploaded">✓</div>
+      </div>
+    `;
+  }
+  
+  return `
+    <div class="document-card missing">
+      <div class="document-icon">${dt.icon}</div>
+      <div class="document-label">${dt.label}</div>
+      <div class="document-status missing">!</div>
+    </div>
+  `;
+}
+
+function editApplicationStatus(id) {
+  const app = applications.find(a => a.id === id);
+  if (!app) return;
+  
+  currentEditingId = id;
+  
+  // Populate modal
+  const statusSelect = $('#newStatus');
+  const notesTextarea = $('#adminNotes');
+  
+  if (statusSelect) statusSelect.value = app.applicationStatus;
+  if (notesTextarea) notesTextarea.value = app.adminNotes || '';
+  
+  $('#statusModal')?.classList.remove('hidden');
+}
+
+async function saveStatusUpdate() {
+  if (!currentEditingId) return;
+  
+  const newStatus = $('#newStatus')?.value;
+  const adminNotes = $('#adminNotes')?.value;
+  
+  if (!newStatus) {
+    showToast('Please select a status', 'error');
+    return;
+  }
+  
+  showLoading('Updating application status...');
+  
+  try {
+    // Update application
+    applications = applications.map(app => 
+      app.id === currentEditingId 
+        ? { ...app, applicationStatus: newStatus, adminNotes: adminNotes, lastUpdated: new Date().toISOString() }
+        : app
+    );
+    
+    // Save to global storage
+    await globalStorage.save(applications);
+    
+    // Refresh dashboard
+    renderStats();
+    filterApplications();
+    
+    closeStatusModal();
+    hideLoading();
+    showToast('Application status updated successfully', 'success');
+    
+  } catch (error) {
+    hideLoading();
+    console.error('Status update error:', error);
+    showToast('Error updating status', 'error');
+  }
+}
+
+// ========== DOCUMENT MANAGEMENT ==========
+function downloadDocument(appId, docKey) {
+  const app = applications.find(a => a.id === appId);
+  if (!app || !app.documents[docKey]) return;
+  
+  const doc = app.documents[docKey];
+  const link = document.createElement('a');
+  link.href = doc.data;
+  link.download = doc.name;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+async function downloadAllDocs(appId) {
+  const app = applications.find(a => a.id === appId);
+  if (!app) return;
+  
+  if (!window.JSZip) {
+    showToast('ZIP functionality is loading. Please try again in a moment.', 'warning');
+    return;
+  }
+  
+  const zip = new JSZip();
+  let hasFiles = false;
+  
+  DOCUMENT_TYPES.forEach(dt => {
+    const doc = app.documents[dt.key];
+    if (doc) {
+      try {
+        const base64 = doc.data.split(',')[1];
+        zip.file(doc.name, base64, {base64: true});
+        hasFiles = true;
+      } catch (error) {
+        console.warn('Error adding file to ZIP:', error);
+      }
     }
+  });
+  
+  if (!hasFiles) {
+    showToast('No documents available for download', 'warning');
+    return;
+  }
+  
+  try {
+    showLoading('Creating ZIP file...');
+    const blob = await zip.generateAsync({type: 'blob'});
+    
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${app.personalInfo.fullName.replace(/\s+/g, '_')}_documents.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+    
+    hideLoading();
+    showToast('Documents downloaded successfully', 'success');
+    
+  } catch (error) {
+    hideLoading();
+    console.error('Error creating ZIP file:', error);
+    showToast('Error creating ZIP file. Please try again.', 'error');
+  }
+}
+
+// ========== DATA MANAGEMENT ==========
+async function syncDatabase() {
+  showLoading('Syncing with global database...');
+  
+  try {
+    applications = await globalStorage.load();
+    renderStats();
+    filterApplications();
+    hideLoading();
+    showToast('Database synced successfully', 'success');
+  } catch (error) {
+    hideLoading();
+    console.error('Sync error:', error);
+    showToast('Error syncing database', 'error');
+  }
+}
+
+function exportData() {
+  const data = JSON.stringify(applications, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `faculty-applications-${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  
+  showToast('Data exported successfully', 'success');
+}
+
+function importData() {
+  $('#importFile')?.click();
+}
+
+function handleImportFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const importedData = JSON.parse(e.target.result);
+      
+      if (!Array.isArray(importedData)) {
+        throw new Error('Invalid file format');
+      }
+      
+      showLoading('Importing data...');
+      
+      // Merge with existing data
+      const existingIds = applications.map(app => app.id);
+      const newApplications = importedData.filter(app => !existingIds.includes(app.id));
+      
+      applications = [...applications, ...newApplications];
+      
+      // Save to global storage
+      await globalStorage.save(applications);
+      
+      renderStats();
+      filterApplications();
+      hideLoading();
+      
+      showToast(`Imported ${newApplications.length} new applications`, 'success');
+      
+    } catch (error) {
+      hideLoading();
+      console.error('Import error:', error);
+      showToast('Invalid file format or import error', 'error');
+    }
+  };
+  
+  reader.readAsText(file);
+  event.target.value = ''; // Reset file input
 }
 
 function exportToCSV() {
-    try {
-        const headers = [
-            'Application ID', 'Name', 'Email', 'Phone', 'City', 'Designation', 'Organization', 
-            'Experience (Years)', 'Areas of Expertise', 'Preferred Subjects', 'Teaching Mode',
-            'Expected Compensation', 'Status', 'Submission Date'
-        ];
-        
-        const csvData = filteredApplications.map(app => [
-            app.id,
-            app.personalInfo.fullName,
-            app.personalInfo.email,
-            app.personalInfo.phone,
-            app.personalInfo.city || '',
-            app.professionalInfo.designation,
-            app.professionalInfo.organization,
-            app.professionalInfo.experience,
-            '"' + app.professionalInfo.expertise.join(', ') + '"',
-            '"' + app.teachingPreferences.subjects.join(', ') + '"',
-            app.teachingPreferences.mode,
-            app.teachingPreferences.expectedCompensation,
-            app.applicationStatus,
-            new Date(app.submissionDate).toLocaleDateString()
-        ]);
-        
-        const csvContent = [headers, ...csvData]
-            .map(row => row.map(field => typeof field === 'string' && field.includes(',') && !field.startsWith('"') ? `"${field}"` : field).join(','))
-            .join('\n');
-        
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `faculty_applications_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
-        
-        console.log('CSV exported successfully');
-    } catch (error) {
-        console.error('Error exporting to CSV:', error);
-        alert('Error exporting data. Please try again.');
-    }
+  if (filteredApplications.length === 0) { 
+    showToast('No applications to export', 'warning');
+    return; 
+  }
+  
+  const headers = [
+    'ID', 'Full Name', 'Email', 'Phone', 'City', 'Designation', 'Organization', 
+    'Experience', 'Expertise', 'Subjects', 'Teaching Mode', 'Status', 'Submission Date', 
+    'Document Status', 'Admin Notes'
+  ];
+  
+  const rows = filteredApplications.map(app => [
+    app.id,
+    app.personalInfo.fullName,
+    app.personalInfo.email,
+    app.personalInfo.phone,
+    app.personalInfo.city,
+    app.professionalInfo.designation,
+    app.professionalInfo.organization,
+    app.professionalInfo.experience,
+    app.professionalInfo.expertise.join('; '),
+    app.teachingPreferences.subjects.join('; '),
+    app.teachingPreferences.mode,
+    app.applicationStatus,
+    formatDate(app.submissionDate),
+    docsCompletion(app),
+    app.adminNotes || ''
+  ]);
+
+  const csv = [headers, ...rows]
+    .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `faculty-applications-${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  
+  showToast('CSV exported successfully', 'success');
 }
 
-// =============================================================================
-// INITIALIZATION & EVENT HANDLERS
-// =============================================================================
-
-function initApp() {
-    try {
-        console.log('Initializing Fintelligence Academy Faculty Empanelment App');
-        
-        // Initialize theme
-        initializeTheme();
-        
-        // Check admin login status
-        if (isLoggedIn) {
-            const logoutBtn = document.getElementById('logoutBtn');
-            const adminAccessBtn = document.getElementById('adminAccessBtn');
-            if (logoutBtn) logoutBtn.classList.remove('hidden');
-            if (adminAccessBtn) adminAccessBtn.classList.add('hidden');
-        }
-        
-        // Show landing page
-        showPage('landing');
-        
-        // Bind event handlers to buttons
-        bindEventHandlers();
-        
-        console.log('App initialized successfully');
-    } catch (error) {
-        console.error('Error initializing app:', error);
-    }
+// ========== MODAL MANAGEMENT ==========
+function closeModal() { 
+  $('#applicationModal')?.classList.add('hidden'); 
 }
 
-function bindEventHandlers() {
-    try {
-        // Bind navigation buttons if they exist
-        const nextBtn = document.getElementById('nextBtn');
-        const prevBtn = document.getElementById('prevBtn');
-        
-        if (nextBtn) {
-            nextBtn.onclick = nextStep;
-        }
-        
-        if (prevBtn) {
-            prevBtn.onclick = prevStep;
-        }
-        
-        console.log('Event handlers bound successfully');
-    } catch (error) {
-        console.error('Error binding event handlers:', error);
-    }
+function closeStatusModal() {
+  $('#statusModal')?.classList.add('hidden');
+  currentEditingId = null;
 }
 
-// Close dropdowns when clicking outside
-document.addEventListener('click', function(event) {
-    try {
-        const dropdowns = document.querySelectorAll('.multi-select-dropdown.open');
-        dropdowns.forEach(dropdown => {
-            const parent = dropdown.closest('.multi-select');
-            if (parent && !parent.contains(event.target)) {
-                dropdown.classList.remove('open');
-            }
-        });
-    } catch (error) {
-        console.error('Error handling document click:', error);
+function openFullView(data) { 
+  window.open(data, '_blank'); 
+}
+
+// ========== INITIALIZATION ==========
+function init() {
+  console.log('🚀 Initializing Fintelligence Faculty Empanelment System');
+  
+  // Apply theme
+  applyTheme();
+  
+  // Check admin login state
+  if (isLoggedIn) { 
+    const logoutBtn = $('#logoutBtn');
+    if (logoutBtn) logoutBtn.classList.remove('hidden'); 
+  }
+  
+  // Preload applications for faster dashboard access
+  globalStorage.load().then(data => {
+    applications = data;
+    console.log(`📊 Loaded ${applications.length} applications from storage`);
+  }).catch(error => {
+    console.warn('Initial load failed:', error);
+  });
+  
+  // Show landing page
+  showLanding();
+  
+  // Add click outside modal to close
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal')) {
+      closeModal();
+      closeStatusModal();
     }
-});
+  });
+  
+  console.log('✅ System initialized successfully');
+}
 
-// Close modal when clicking outside
-document.addEventListener('click', function(event) {
-    if (event.target.classList.contains('modal')) {
-        closeModal();
-    }
-});
-
-// Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM Content Loaded - Initializing App');
-    setTimeout(initApp, 100); // Small delay to ensure all elements are ready
-});
-
-// Global error handler
-window.addEventListener('error', function(event) {
-    console.error('Global error:', event.error);
-});
-
-// Make all functions globally available for onclick handlers - FIXED
+// ========== GLOBAL FUNCTION ASSIGNMENTS ==========
+// Make functions available globally for onclick handlers
 window.toggleTheme = toggleTheme;
 window.showLanding = showLanding;
 window.startApplication = startApplication;
 window.showAdminLogin = showAdminLogin;
 window.adminLogin = adminLogin;
 window.logout = logout;
-window.nextStep = nextStep;
-window.prevStep = prevStep;
-window.updateFormData = updateFormData;
-window.updateRangeValue = updateRangeValue;
-window.toggleDropdown = toggleDropdown;
-window.toggleMultiSelectOption = toggleMultiSelectOption;
-window.removeFromMultiSelect = removeFromMultiSelect;
-window.triggerFileUpload = triggerFileUpload;
-window.handleFileSelect = handleFileSelect;
-window.handleFileDrop = handleFileDrop;
-window.handleDragOver = handleDragOver;
-window.handleDragEnter = handleDragEnter;
-window.handleDragLeave = handleDragLeave;
-window.removeFile = removeFile;
+window.changeStep = changeStep;
 window.submitApplication = submitApplication;
+window.updateExpertise = updateExpertise;
+window.updateSubjects = updateSubjects;
+window.handleFileUpload = handleFileUpload;
+window.removeFile = removeFile;
 window.filterApplications = filterApplications;
-window.updateApplicationStatus = updateApplicationStatus;
 window.viewApplication = viewApplication;
+window.editApplicationStatus = editApplicationStatus;
+window.saveStatusUpdate = saveStatusUpdate;
 window.closeModal = closeModal;
+window.closeStatusModal = closeStatusModal;
+window.downloadDocument = downloadDocument;
+window.downloadAllDocs = downloadAllDocs;
+window.openFullView = openFullView;
+window.syncDatabase = syncDatabase;
+window.exportData = exportData;
+window.importData = importData;
+window.handleImportFile = handleImportFile;
 window.exportToCSV = exportToCSV;
 
-console.log('Fintelligence Academy Faculty Empanelment System Loaded Successfully with all fixes applied!');
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
