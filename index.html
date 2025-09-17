@@ -6,7 +6,7 @@
     <title>Faculty Empanelment - Fintelligence Academy</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-theme="light">
     <div id="app">
         <!-- Header -->
         <header class="header">
@@ -38,33 +38,33 @@
                             Empower the next generation of finance professionals by sharing your expertise 
                             at Fintelligence Academy. Join our community of distinguished educators.
                         </p>
-                        <button class="btn btn--primary btn--lg" onclick="startApplication()">
+                        <button class="btn btn--primary btn--large" onclick="startApplication()">
                             🚀 Start Your Application
                         </button>
                     </div>
                 </section>
 
                 <div class="container">
-                    <div class="benefits-grid">
-                        <div class="card">
+                    <div class="features-grid">
+                        <div class="card feature-card">
                             <div class="card__body">
-                                <div class="benefit-icon">👥</div>
+                                <div class="feature-icon">👥</div>
                                 <h3>Expert Community</h3>
                                 <p>Join a prestigious community of finance and technology experts shaping the future of education.</p>
                             </div>
                         </div>
 
-                        <div class="card">
+                        <div class="card feature-card">
                             <div class="card__body">
-                                <div class="benefit-icon">💻</div>
+                                <div class="feature-icon">💻</div>
                                 <h3>Flexible Teaching</h3>
                                 <p>Choose your preferred teaching mode - online, offline, or hybrid - and set your own schedule.</p>
                             </div>
                         </div>
 
-                        <div class="card">
+                        <div class="card feature-card">
                             <div class="card__body">
-                                <div class="benefit-icon">📈</div>
+                                <div class="feature-icon">📈</div>
                                 <h3>Competitive Compensation</h3>
                                 <p>Earn competitive compensation while making a meaningful impact in finance education.</p>
                             </div>
@@ -73,10 +73,10 @@
 
                     <div class="cta-section">
                         <div class="card">
-                            <div class="card__body">
+                            <div class="card__body text-center">
                                 <h2>Ready to Make an Impact?</h2>
                                 <p>Start your empanelment journey today and help shape the future of finance education.</p>
-                                <button class="btn btn--primary btn--lg" onclick="startApplication()">
+                                <button class="btn btn--primary btn--large" onclick="startApplication()">
                                     Begin Application Process
                                 </button>
                             </div>
@@ -120,7 +120,7 @@
                             <p>Access the faculty empanelment dashboard</p>
                         </div>
                         
-                        <div id="loginError" class="alert alert--error hidden"></div>
+                        <div id="loginError" class="hidden error-message"></div>
                         
                         <div class="form-group">
                             <label class="form-label">Email Address</label>
@@ -151,7 +151,7 @@
 
                     <div class="dashboard-controls">
                         <div class="search-filters">
-                            <input type="text" class="form-control" placeholder="Search applications..." id="searchInput" oninput="filterApplications()">
+                            <input type="text" class="form-control search-input" placeholder="Search applications..." id="searchInput" oninput="filterApplications()">
                             <select class="form-control" id="statusFilter" onchange="filterApplications()">
                                 <option value="">All Status</option>
                                 <option value="Pending">Pending</option>
@@ -165,8 +165,8 @@
                         </button>
                     </div>
 
-                    <div class="data-table-container">
-                        <table class="data-table">
+                    <div class="data-table">
+                        <table class="table">
                             <thead>
                                 <tr>
                                     <th>Name</th>
@@ -178,10 +178,9 @@
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="applicationsTable">
-                            </tbody>
+                            <tbody id="applicationsTable"></tbody>
                         </table>
-                        <div id="emptyState" class="empty-state hidden">
+                        <div id="emptyState" class="hidden empty-state">
                             <div class="empty-icon">📥</div>
                             <p>No applications found</p>
                         </div>
@@ -198,7 +197,7 @@
                         Thank you for your interest in joining Fintelligence Academy as a faculty member. 
                         Our team will review your application and get back to you within 5-7 business days.
                     </p>
-                    <button class="btn btn--primary btn--lg" onclick="showLanding()">
+                    <button class="btn btn--primary btn--large" onclick="showLanding()">
                         ➕ Submit Another Application
                     </button>
                 </div>
@@ -210,34 +209,22 @@
             ⚙️
         </button>
 
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <p id="loadingText">Loading...</p>
+            </div>
+        </div>
+
         <!-- Application Detail Modal -->
         <div id="applicationModal" class="modal hidden">
-            <div class="modal-backdrop" onclick="closeModal()"></div>
             <div class="modal-content">
                 <div class="modal-header">
                     <h3>Application Details</h3>
                     <button class="modal-close" onclick="closeModal()">×</button>
                 </div>
                 <div class="modal-body" id="modalBody"></div>
-            </div>
-        </div>
-
-        <!-- Document Viewer Modal -->
-        <div id="documentModal" class="modal hidden">
-            <div class="modal-backdrop" onclick="closeDocumentModal()"></div>
-            <div class="modal-content document-modal">
-                <div class="modal-header">
-                    <h3 id="documentTitle">Document Viewer</h3>
-                    <div class="document-actions">
-                        <button class="btn btn--secondary" id="downloadDocBtn" onclick="downloadCurrentDocument()">
-                            📥 Download
-                        </button>
-                        <button class="modal-close" onclick="closeDocumentModal()">×</button>
-                    </div>
-                </div>
-                <div class="modal-body">
-                    <div id="documentViewer" class="document-viewer"></div>
-                </div>
             </div>
         </div>
     </div>

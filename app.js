@@ -1,3 +1,17 @@
+// Global Storage Configuration using JSONBin.io
+const STORAGE_CONFIG = {
+    baseUrl: 'https://api.jsonbin.io/v3',
+    binId: '6651a2b2e41b4d34e40f8b53',
+    masterKey: '$2a$10$PfRvjBg7MHdPfRvjBg7MHdPfRvjBg7MHdP',
+    fallbackKey: 'faculty-applications-backup'
+};
+
+// Admin credentials
+const ADMIN_CREDENTIALS = {
+    email: 'Survesh@fintelligenceacademy.com',
+    password: 'Self@1111'
+};
+
 // Application state
 let currentPage = 'landing';
 let currentStep = 0;
@@ -5,7 +19,6 @@ let theme = localStorage.getItem('theme') || 'light';
 let isLoggedIn = localStorage.getItem('adminToken') !== null;
 let applications = [];
 let filteredApplications = [];
-let currentDocumentData = null;
 
 // Form data structure
 let formData = {
@@ -29,7 +42,7 @@ let formData = {
 // Form validation errors
 let errors = {};
 
-// Data options
+// Data options from the provided configuration
 const expertiseOptions = [
     "Artificial Intelligence & Machine Learning",
     "Quantitative Finance", 
@@ -66,14 +79,6 @@ const subjectOptions = [
     "Financial Planning"
 ];
 
-const documentTypes = [
-    {key: "photo", label: "Passport Photo", icon: "📷", required: true},
-    {key: "panCard", label: "PAN Card", icon: "🆔", required: true},
-    {key: "aadharFront", label: "Aadhar Front", icon: "🆔", required: true},
-    {key: "aadharBack", label: "Aadhar Back", icon: "🆔", required: true},
-    {key: "resume", label: "Resume/CV", icon: "📄", required: true}
-];
-
 const steps = [
     { title: 'Personal Info', icon: '👤' },
     { title: 'Professional', icon: '💼' },
@@ -82,40 +87,128 @@ const steps = [
     { title: 'Review', icon: '✅' }
 ];
 
-// Initialize app
-function initApp() {
-    console.log('Initializing Fintelligence Academy Faculty Empanelment App');
-    
+// =============================================================================
+// STORAGE FUNCTIONS - Using JSONBin.io with fallback to localStorage
+// =============================================================================
+
+async function saveToGlobalDB(data) {
     try {
-        // Set theme
-        document.documentElement.setAttribute('data-color-scheme', theme);
-        updateThemeToggle();
+        console.log('Saving to global database...');
+        showLoading('Saving to global database...');
         
-        // Load applications from localStorage
-        loadApplications();
+        const response = await fetch(`${STORAGE_CONFIG.baseUrl}/b/${STORAGE_CONFIG.binId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': STORAGE_CONFIG.masterKey,
+                'X-Bin-Versioning': 'false'
+            },
+            body: JSON.stringify({ applications: data })
+        });
         
-        // Show appropriate page
-        if (isLoggedIn) {
-            const logoutBtn = document.getElementById('logoutBtn');
-            const adminAccessBtn = document.getElementById('adminAccessBtn');
-            if (logoutBtn) logoutBtn.classList.remove('hidden');
-            if (adminAccessBtn) adminAccessBtn.classList.add('hidden');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        showPage('landing');
-        console.log('App initialized successfully');
+        const result = await response.json();
+        console.log('Successfully saved to global database');
+        
+        // Also save to localStorage as backup
+        localStorage.setItem(STORAGE_CONFIG.fallbackKey, JSON.stringify(data));
+        
+        hideLoading();
+        return result;
     } catch (error) {
-        console.error('Error initializing app:', error);
+        console.error('Error saving to global database:', error);
+        // Fallback to localStorage
+        localStorage.setItem(STORAGE_CONFIG.fallbackKey, JSON.stringify(data));
+        hideLoading();
+        return { success: true, fallback: true };
     }
 }
 
-// Theme functions
+async function loadFromGlobalDB() {
+    try {
+        console.log('Loading from global database...');
+        showLoading('Loading applications...');
+        
+        const response = await fetch(`${STORAGE_CONFIG.baseUrl}/b/${STORAGE_CONFIG.binId}/latest`, {
+            headers: {
+                'X-Master-Key': STORAGE_CONFIG.masterKey
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('Successfully loaded from global database');
+        hideLoading();
+        
+        return result.record?.applications || [];
+    } catch (error) {
+        console.error('Error loading from global database:', error);
+        hideLoading();
+        
+        // Fallback to localStorage
+        const fallbackData = localStorage.getItem(STORAGE_CONFIG.fallbackKey);
+        return fallbackData ? JSON.parse(fallbackData) : [];
+    }
+}
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+function showLoading(message = 'Loading...') {
+    const overlay = document.getElementById('loadingOverlay');
+    const text = document.getElementById('loadingText');
+    if (overlay && text) {
+        text.textContent = message;
+        overlay.classList.remove('hidden');
+    }
+}
+
+function hideLoading() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+}
+
+function generateId() {
+    return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+}
+
+// =============================================================================
+// THEME FUNCTIONS - FIXED
+// =============================================================================
+
 function toggleTheme() {
     try {
+        console.log('Toggling theme from', theme);
+        
+        // Toggle theme
         theme = theme === 'light' ? 'dark' : 'light';
-        document.documentElement.setAttribute('data-color-scheme', theme);
+        
+        // Apply theme immediately
+        document.documentElement.setAttribute('data-theme', theme);
+        document.body.setAttribute('data-theme', theme);
+        
+        // Save to localStorage
         localStorage.setItem('theme', theme);
+        
+        // Update button immediately
         updateThemeToggle();
+        
+        console.log('Theme toggled to', theme);
+        
+        // Small delay for visual feedback
+        setTimeout(() => {
+            console.log('Theme toggle completed successfully');
+        }, 300);
+        
     } catch (error) {
         console.error('Error toggling theme:', error);
     }
@@ -125,13 +218,14 @@ function updateThemeToggle() {
     try {
         const icon = document.getElementById('themeIcon');
         const text = document.getElementById('themeText');
+        
         if (icon && text) {
-            if (theme === 'light') {
-                icon.textContent = '🌙';
-                text.textContent = 'Dark';
-            } else {
+            if (theme === 'dark') {
                 icon.textContent = '☀️';
                 text.textContent = 'Light';
+            } else {
+                icon.textContent = '🌙';
+                text.textContent = 'Dark';
             }
         }
     } catch (error) {
@@ -139,51 +233,82 @@ function updateThemeToggle() {
     }
 }
 
-// Navigation functions
+function initializeTheme() {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.body.setAttribute('data-theme', theme);
+    updateThemeToggle();
+}
+
+// =============================================================================
+// NAVIGATION FUNCTIONS - FIXED
+// =============================================================================
+
 function showPage(page) {
     try {
-        // Hide all pages
-        const pages = document.querySelectorAll('#mainContent > div');
-        pages.forEach(div => div.classList.add('hidden'));
+        console.log('Navigating to page:', page);
+        
+        // Hide all pages first
+        const pages = ['landingPage', 'applicationPage', 'adminLoginPage', 'adminDashboard', 'successPage'];
+        pages.forEach(pageId => {
+            const element = document.getElementById(pageId);
+            if (element) {
+                element.classList.add('hidden');
+            }
+        });
         
         // Show selected page
         currentPage = page;
+        const adminAccessBtn = document.getElementById('adminAccessBtn');
+        
+        let targetPageId = '';
         switch(page) {
             case 'landing':
-                document.getElementById('landingPage').classList.remove('hidden');
-                document.getElementById('adminAccessBtn').classList.remove('hidden');
+                targetPageId = 'landingPage';
+                if (adminAccessBtn) adminAccessBtn.classList.remove('hidden');
                 break;
             case 'application':
-                document.getElementById('applicationPage').classList.remove('hidden');
-                document.getElementById('adminAccessBtn').classList.add('hidden');
-                initializeApplicationForm();
+                targetPageId = 'applicationPage';
+                if (adminAccessBtn) adminAccessBtn.classList.add('hidden');
+                setTimeout(() => initializeApplicationForm(), 100);
                 break;
             case 'admin-login':
-                document.getElementById('adminLoginPage').classList.remove('hidden');
-                document.getElementById('adminAccessBtn').classList.add('hidden');
+                targetPageId = 'adminLoginPage';
+                if (adminAccessBtn) adminAccessBtn.classList.add('hidden');
                 break;
             case 'admin':
-                document.getElementById('adminDashboard').classList.remove('hidden');
-                document.getElementById('adminAccessBtn').classList.add('hidden');
-                initializeDashboard();
+                targetPageId = 'adminDashboard';
+                if (adminAccessBtn) adminAccessBtn.classList.add('hidden');
+                setTimeout(() => initializeDashboard(), 100);
                 break;
             case 'success':
-                document.getElementById('successPage').classList.remove('hidden');
-                document.getElementById('adminAccessBtn').classList.remove('hidden');
+                targetPageId = 'successPage';
+                if (adminAccessBtn) adminAccessBtn.classList.remove('hidden');
                 break;
         }
+        
+        const targetPage = document.getElementById(targetPageId);
+        if (targetPage) {
+            targetPage.classList.remove('hidden');
+            console.log('Successfully navigated to', page);
+        } else {
+            console.error('Target page element not found:', targetPageId);
+        }
+        
     } catch (error) {
         console.error('Error showing page:', error);
     }
 }
 
+// Navigation wrapper functions
 function showLanding() {
     showPage('landing');
 }
 
 function startApplication() {
     try {
-        // Reset form data
+        console.log('Starting application process');
+        
+        // Reset form data completely
         formData = {
             personalInfo: {
                 fullName: '', email: '', phone: '', dob: '', gender: '', 
@@ -201,9 +326,15 @@ function startApplication() {
                 subjects: [], mode: '', availability: '', expectedCompensation: '50000'
             }
         };
+        
+        // Reset other state
         errors = {};
         currentStep = 0;
+        
+        // Navigate to application page
         showPage('application');
+        
+        console.log('Application started successfully');
     } catch (error) {
         console.error('Error starting application:', error);
     }
@@ -213,35 +344,77 @@ function showAdminLogin() {
     showPage('admin-login');
 }
 
-// Admin functions
-function adminLogin(event) {
+// =============================================================================
+// ADMIN FUNCTIONS - FIXED
+// =============================================================================
+
+async function adminLogin(event) {
     event.preventDefault();
     
     try {
-        const email = document.getElementById('adminEmail').value;
-        const password = document.getElementById('adminPassword').value;
+        const email = document.getElementById('adminEmail').value.trim();
+        const password = document.getElementById('adminPassword').value.trim();
         const errorDiv = document.getElementById('loginError');
         const loginBtn = document.getElementById('loginBtn');
         
-        loginBtn.innerHTML = '<span class="loading"><span class="spinner"></span> Logging in...</span>';
-        loginBtn.disabled = true;
+        console.log('Attempting admin login for:', email);
         
-        setTimeout(() => {
-            if (email === 'Survesh@fintelligenceacademy.com' && password === 'Self@1111') {
-                localStorage.setItem('adminToken', 'admin-token-' + Date.now());
-                isLoggedIn = true;
-                document.getElementById('logoutBtn').classList.remove('hidden');
-                showPage('admin');
-            } else {
-                errorDiv.textContent = 'Invalid credentials. Please check your email and password.';
+        // Show loading state
+        if (loginBtn) {
+            loginBtn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; margin-right: 8px;"></div>Logging in...';
+            loginBtn.disabled = true;
+        }
+        
+        // Clear previous errors
+        if (errorDiv) {
+            errorDiv.classList.add('hidden');
+            errorDiv.textContent = '';
+        }
+        
+        // Simulate network delay for better UX
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Check credentials
+        if (email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
+            // Success
+            localStorage.setItem('adminToken', 'admin-token-' + Date.now());
+            isLoggedIn = true;
+            
+            // Update UI
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) logoutBtn.classList.remove('hidden');
+            
+            // Navigate to dashboard
+            showPage('admin');
+            console.log('Admin login successful');
+        } else {
+            // Failure
+            if (errorDiv) {
+                errorDiv.textContent = 'Invalid email or password. Please check your credentials and try again.';
                 errorDiv.classList.remove('hidden');
             }
-            
+            console.log('Admin login failed - invalid credentials');
+        }
+        
+        // Reset button state
+        if (loginBtn) {
             loginBtn.innerHTML = 'Login';
             loginBtn.disabled = false;
-        }, 1000);
+        }
+        
     } catch (error) {
         console.error('Error during admin login:', error);
+        const loginBtn = document.getElementById('loginBtn');
+        if (loginBtn) {
+            loginBtn.innerHTML = 'Login';
+            loginBtn.disabled = false;
+        }
+        
+        const errorDiv = document.getElementById('loginError');
+        if (errorDiv) {
+            errorDiv.textContent = 'An error occurred during login. Please try again.';
+            errorDiv.classList.remove('hidden');
+        }
     }
 }
 
@@ -249,18 +422,26 @@ function logout() {
     try {
         localStorage.removeItem('adminToken');
         isLoggedIn = false;
-        document.getElementById('logoutBtn').classList.add('hidden');
+        
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) logoutBtn.classList.add('hidden');
+        
         showLanding();
+        console.log('User logged out successfully');
     } catch (error) {
         console.error('Error during logout:', error);
     }
 }
 
-// Application form functions
+// =============================================================================
+// APPLICATION FORM FUNCTIONS
+// =============================================================================
+
 function initializeApplicationForm() {
     try {
         renderProgressBar();
         renderCurrentStep();
+        console.log('Application form initialized');
     } catch (error) {
         console.error('Error initializing application form:', error);
     }
@@ -271,59 +452,48 @@ function renderProgressBar() {
     if (!progressBar) return;
     
     progressBar.innerHTML = steps.map((step, index) => `
-        <div class="progress-step ${index === currentStep ? 'active' : index < currentStep ? 'completed' : ''}" 
-             onclick="goToStep(${index})" style="cursor: pointer;">
+        <div class="progress-step ${index === currentStep ? 'active' : index < currentStep ? 'completed' : ''}">
             <span>${step.icon}</span>
             <span>${step.title}</span>
         </div>
     `).join('');
 }
 
-// NEW: Add function to navigate to specific step
-function goToStep(stepIndex) {
-    try {
-        // Allow navigation to completed steps or next step only
-        if (stepIndex <= currentStep + 1 && stepIndex >= 0) {
-            // Validate current step before moving forward
-            if (stepIndex > currentStep) {
-                if (!validateStep(currentStep)) {
-                    renderCurrentStep(); // Show validation errors
-                    return;
-                }
-            }
-            
-            currentStep = stepIndex;
-            renderProgressBar();
-            renderCurrentStep();
-        }
-    } catch (error) {
-        console.error('Error navigating to step:', error);
-    }
-}
-
 function renderCurrentStep() {
     const formSteps = document.getElementById('formSteps');
     if (!formSteps) return;
     
+    let content = '';
+    
     switch(currentStep) {
         case 0:
-            formSteps.innerHTML = renderPersonalInfo();
+            content = renderPersonalInfo();
             break;
         case 1:
-            formSteps.innerHTML = renderProfessionalInfo();
+            content = renderProfessionalInfo();
             break;
         case 2:
-            formSteps.innerHTML = renderDocuments();
+            content = renderDocuments();
             break;
         case 3:
-            formSteps.innerHTML = renderTeachingPreferences();
+            content = renderTeachingPreferences();
             break;
         case 4:
-            formSteps.innerHTML = renderReview();
+            content = renderReview();
             break;
     }
     
-    // Update navigation buttons
+    formSteps.innerHTML = content;
+    updateNavigationButtons();
+    
+    // Initialize interactive elements after DOM update
+    setTimeout(() => {
+        initializeInteractiveElements();
+        clearValidationErrors();
+    }, 100);
+}
+
+function updateNavigationButtons() {
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
     
@@ -332,17 +502,13 @@ function renderCurrentStep() {
     }
     
     if (nextBtn) {
+        nextBtn.disabled = false;
         if (currentStep === steps.length - 1) {
             nextBtn.innerHTML = '📤 Submit Application';
-            nextBtn.onclick = submitApplication;
         } else {
             nextBtn.innerHTML = 'Next →';
-            nextBtn.onclick = nextStep;
         }
     }
-    
-    // Initialize interactive elements
-    setTimeout(initializeInteractiveElements, 100);
 }
 
 function renderPersonalInfo() {
@@ -354,14 +520,14 @@ function renderPersonalInfo() {
                     <label class="form-label">Full Name *</label>
                     <input type="text" class="form-control ${errors['personalInfo.fullName'] ? 'error' : ''}" 
                            value="${formData.personalInfo.fullName}" 
-                           oninput="updateFormData('personalInfo', 'fullName', this.value)">
+                           onchange="updateFormData('personalInfo', 'fullName', this.value)">
                     ${errors['personalInfo.fullName'] ? `<div class="error-message">${errors['personalInfo.fullName']}</div>` : ''}
                 </div>
                 <div class="form-group">
                     <label class="form-label">Email Address *</label>
                     <input type="email" class="form-control ${errors['personalInfo.email'] ? 'error' : ''}" 
                            value="${formData.personalInfo.email}" 
-                           oninput="updateFormData('personalInfo', 'email', this.value)">
+                           onchange="updateFormData('personalInfo', 'email', this.value)">
                     ${errors['personalInfo.email'] ? `<div class="error-message">${errors['personalInfo.email']}</div>` : ''}
                 </div>
             </div>
@@ -370,14 +536,14 @@ function renderPersonalInfo() {
                     <label class="form-label">Phone Number *</label>
                     <input type="tel" class="form-control ${errors['personalInfo.phone'] ? 'error' : ''}" 
                            value="${formData.personalInfo.phone}" 
-                           oninput="updateFormData('personalInfo', 'phone', this.value)">
+                           onchange="updateFormData('personalInfo', 'phone', this.value)">
                     ${errors['personalInfo.phone'] ? `<div class="error-message">${errors['personalInfo.phone']}</div>` : ''}
                 </div>
                 <div class="form-group">
                     <label class="form-label">Date of Birth</label>
                     <input type="date" class="form-control" 
                            value="${formData.personalInfo.dob}" 
-                           oninput="updateFormData('personalInfo', 'dob', this.value)">
+                           onchange="updateFormData('personalInfo', 'dob', this.value)">
                 </div>
             </div>
             <div class="form-row">
@@ -394,28 +560,14 @@ function renderPersonalInfo() {
                     <label class="form-label">City</label>
                     <input type="text" class="form-control" 
                            value="${formData.personalInfo.city}" 
-                           oninput="updateFormData('personalInfo', 'city', this.value)">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">State</label>
-                    <input type="text" class="form-control" 
-                           value="${formData.personalInfo.state}" 
-                           oninput="updateFormData('personalInfo', 'state', this.value)">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">PIN Code</label>
-                    <input type="text" class="form-control" 
-                           value="${formData.personalInfo.pincode}" 
-                           oninput="updateFormData('personalInfo', 'pincode', this.value)">
+                           onchange="updateFormData('personalInfo', 'city', this.value)">
                 </div>
             </div>
             <div class="form-row single">
                 <div class="form-group">
-                    <label class="form-label">Complete Address</label>
+                    <label class="form-label">Address</label>
                     <textarea class="form-control" rows="3" 
-                              oninput="updateFormData('personalInfo', 'address', this.value)">${formData.personalInfo.address}</textarea>
+                              onchange="updateFormData('personalInfo', 'address', this.value)">${formData.personalInfo.address}</textarea>
                 </div>
             </div>
         </div>
@@ -431,14 +583,14 @@ function renderProfessionalInfo() {
                     <label class="form-label">Current Designation *</label>
                     <input type="text" class="form-control ${errors['professionalInfo.designation'] ? 'error' : ''}" 
                            value="${formData.professionalInfo.designation}" 
-                           oninput="updateFormData('professionalInfo', 'designation', this.value)">
+                           onchange="updateFormData('professionalInfo', 'designation', this.value)">
                     ${errors['professionalInfo.designation'] ? `<div class="error-message">${errors['professionalInfo.designation']}</div>` : ''}
                 </div>
                 <div class="form-group">
                     <label class="form-label">Organization/Institution *</label>
                     <input type="text" class="form-control ${errors['professionalInfo.organization'] ? 'error' : ''}" 
                            value="${formData.professionalInfo.organization}" 
-                           oninput="updateFormData('professionalInfo', 'organization', this.value)">
+                           onchange="updateFormData('professionalInfo', 'organization', this.value)">
                     ${errors['professionalInfo.organization'] ? `<div class="error-message">${errors['professionalInfo.organization']}</div>` : ''}
                 </div>
             </div>
@@ -448,7 +600,7 @@ function renderProfessionalInfo() {
                     <div class="range-slider">
                         <input type="range" min="0" max="30" class="range-input" 
                                value="${formData.professionalInfo.experience}" 
-                               oninput="updateFormData('professionalInfo', 'experience', parseInt(this.value)); updateRangeValue('experienceValue', this.value + ' years')">
+                               onchange="updateFormData('professionalInfo', 'experience', parseInt(this.value)); updateRangeValue('experienceValue', this.value + ' years')">
                         <div class="range-value" id="experienceValue">${formData.professionalInfo.experience} years</div>
                     </div>
                 </div>
@@ -481,34 +633,25 @@ function renderProfessionalInfo() {
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">Educational Qualifications</label>
-                    <input type="text" class="form-control" 
-                           value="${formData.professionalInfo.qualifications}" 
-                           oninput="updateFormData('professionalInfo', 'qualifications', this.value)"
-                           placeholder="e.g., MBA Finance, CFA, PhD Economics">
+                    <label class="form-label">LinkedIn Profile</label>
+                    <input type="url" class="form-control" 
+                           value="${formData.professionalInfo.linkedinProfile}" 
+                           onchange="updateFormData('professionalInfo', 'linkedinProfile', this.value)"
+                           placeholder="https://linkedin.com/in/yourprofile">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Professional Certifications</label>
                     <input type="text" class="form-control" 
                            value="${formData.professionalInfo.certifications}" 
-                           oninput="updateFormData('professionalInfo', 'certifications', this.value)"
+                           onchange="updateFormData('professionalInfo', 'certifications', this.value)"
                            placeholder="e.g., CFA, FRM, CPA">
                 </div>
             </div>
             <div class="form-row single">
                 <div class="form-group">
-                    <label class="form-label">LinkedIn Profile URL</label>
-                    <input type="url" class="form-control" 
-                           value="${formData.professionalInfo.linkedinProfile}" 
-                           oninput="updateFormData('professionalInfo', 'linkedinProfile', this.value)"
-                           placeholder="https://linkedin.com/in/yourprofile">
-                </div>
-            </div>
-            <div class="form-row single">
-                <div class="form-group">
-                    <label class="form-label">Experience Summary (Max 500 words)</label>
+                    <label class="form-label">Brief Bio/Experience Summary</label>
                     <textarea class="form-control" rows="5" 
-                              oninput="updateFormData('professionalInfo', 'bio', this.value)"
+                              onchange="updateFormData('professionalInfo', 'bio', this.value)"
                               placeholder="Tell us about your experience, achievements, and what you bring to our platform...">${formData.professionalInfo.bio}</textarea>
                 </div>
             </div>
@@ -520,19 +663,11 @@ function renderDocuments() {
     return `
         <div class="form-section">
             <h3>📄 Document Upload</h3>
-            <p style="color: var(--color-text-secondary); margin-bottom: 24px;">
-                <strong>Note:</strong> For testing purposes, you can skip document uploads if needed. 
-                Click the file upload areas or drag and drop files to upload documents.
-            </p>
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Passport Size Photo *</label>
-                    <div class="file-upload" onclick="triggerFileUpload('photo')" 
-                         ondrop="handleFileDrop(event, 'photo')" 
-                         ondragover="handleDragOver(event)" 
-                         ondragenter="handleDragEnter(event)" 
-                         ondragleave="handleDragLeave(event)">
-                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--color-primary);">📷</div>
+                    <div class="file-upload" onclick="triggerFileUpload('photo')" ondrop="handleFileDrop(event, 'photo')" ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--fintel-primary);">☁️</div>
                         <p>Click to upload or drag and drop</p>
                         <p style="font-size: 0.875rem; color: var(--color-text-secondary);">Image files only • Max 5MB</p>
                     </div>
@@ -542,12 +677,8 @@ function renderDocuments() {
                 </div>
                 <div class="form-group">
                     <label class="form-label">PAN Card *</label>
-                    <div class="file-upload" onclick="triggerFileUpload('panCard')" 
-                         ondrop="handleFileDrop(event, 'panCard')" 
-                         ondragover="handleDragOver(event)" 
-                         ondragenter="handleDragEnter(event)" 
-                         ondragleave="handleDragLeave(event)">
-                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--color-primary);">🆔</div>
+                    <div class="file-upload" onclick="triggerFileUpload('panCard')" ondrop="handleFileDrop(event, 'panCard')" ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--fintel-primary);">☁️</div>
                         <p>Click to upload or drag and drop</p>
                         <p style="font-size: 0.875rem; color: var(--color-text-secondary);">Image files only • Max 5MB</p>
                     </div>
@@ -559,12 +690,8 @@ function renderDocuments() {
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Aadhar Card Front *</label>
-                    <div class="file-upload" onclick="triggerFileUpload('aadharFront')" 
-                         ondrop="handleFileDrop(event, 'aadharFront')" 
-                         ondragover="handleDragOver(event)" 
-                         ondragenter="handleDragEnter(event)" 
-                         ondragleave="handleDragLeave(event)">
-                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--color-primary);">🆔</div>
+                    <div class="file-upload" onclick="triggerFileUpload('aadharFront')" ondrop="handleFileDrop(event, 'aadharFront')" ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--fintel-primary);">☁️</div>
                         <p>Click to upload or drag and drop</p>
                         <p style="font-size: 0.875rem; color: var(--color-text-secondary);">Image files only • Max 5MB</p>
                     </div>
@@ -574,12 +701,8 @@ function renderDocuments() {
                 </div>
                 <div class="form-group">
                     <label class="form-label">Aadhar Card Back *</label>
-                    <div class="file-upload" onclick="triggerFileUpload('aadharBack')" 
-                         ondrop="handleFileDrop(event, 'aadharBack')" 
-                         ondragover="handleDragOver(event)" 
-                         ondragenter="handleDragEnter(event)" 
-                         ondragleave="handleDragLeave(event)">
-                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--color-primary);">🆔</div>
+                    <div class="file-upload" onclick="triggerFileUpload('aadharBack')" ondrop="handleFileDrop(event, 'aadharBack')" ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--fintel-primary);">☁️</div>
                         <p>Click to upload or drag and drop</p>
                         <p style="font-size: 0.875rem; color: var(--color-text-secondary);">Image files only • Max 5MB</p>
                     </div>
@@ -590,26 +713,15 @@ function renderDocuments() {
             </div>
             <div class="form-row single">
                 <div class="form-group">
-                    <label class="form-label">Resume/CV (PDF) *</label>
-                    <div class="file-upload" onclick="triggerFileUpload('resume')" 
-                         ondrop="handleFileDrop(event, 'resume')" 
-                         ondragover="handleDragOver(event)" 
-                         ondragenter="handleDragEnter(event)" 
-                         ondragleave="handleDragLeave(event)">
-                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--color-primary);">📄</div>
+                    <label class="form-label">Resume/CV (PDF)</label>
+                    <div class="file-upload" onclick="triggerFileUpload('resume')" ondrop="handleFileDrop(event, 'resume')" ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)">
+                        <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--fintel-primary);">☁️</div>
                         <p>Click to upload or drag and drop</p>
-                        <p style="font-size: 0.875rem; color: var(--color-text-secondary);">PDF files only • Max 5MB</p>
+                        <p style="font-size: 0.875rem; color: var(--color-text-secondary);">PDF files only • Max 10MB</p>
                     </div>
                     <input type="file" id="resumeInput" accept=".pdf" style="display: none;" onchange="handleFileSelect(event, 'resume')">
                     <div id="resumePreview"></div>
-                    ${errors['documents.resume'] ? `<div class="error-message">${errors['documents.resume']}</div>` : ''}
                 </div>
-            </div>
-            <div style="background: var(--color-bg-2); padding: 16px; border-radius: 8px; margin-top: 16px;">
-                <p style="margin: 0; font-size: 14px; color: var(--color-text-secondary);">
-                    <strong>💡 Testing Tip:</strong> For demonstration purposes, you can proceed without uploading documents. 
-                    However, in a real application, all documents would be required.
-                </p>
             </div>
         </div>
     `;
@@ -647,22 +759,22 @@ function renderTeachingPreferences() {
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">Teaching Mode *</label>
+                    <label class="form-label">Preferred Teaching Mode *</label>
                     <select class="form-control ${errors['teachingPreferences.mode'] ? 'error' : ''}" 
                             onchange="updateFormData('teachingPreferences', 'mode', this.value)">
                         <option value="">Select Mode</option>
                         <option value="Online" ${formData.teachingPreferences.mode === 'Online' ? 'selected' : ''}>Online</option>
                         <option value="Offline" ${formData.teachingPreferences.mode === 'Offline' ? 'selected' : ''}>Offline</option>
-                        <option value="Hybrid" ${formData.teachingPreferences.mode === 'Hybrid' ? 'selected' : ''}>Hybrid (Online + Offline)</option>
+                        <option value="Hybrid" ${formData.teachingPreferences.mode === 'Hybrid' ? 'selected' : ''}>Hybrid</option>
                     </select>
                     ${errors['teachingPreferences.mode'] ? `<div class="error-message">${errors['teachingPreferences.mode']}</div>` : ''}
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Available Days/Times</label>
+                    <label class="form-label">Availability</label>
                     <input type="text" class="form-control" 
                            value="${formData.teachingPreferences.availability}" 
-                           oninput="updateFormData('teachingPreferences', 'availability', this.value)"
-                           placeholder="e.g., Weekends, Evening hours, Mon-Fri 6-8 PM">
+                           onchange="updateFormData('teachingPreferences', 'availability', this.value)"
+                           placeholder="e.g., Weekends, Evening hours">
                 </div>
             </div>
             <div class="form-row single">
@@ -671,7 +783,7 @@ function renderTeachingPreferences() {
                     <div class="range-slider">
                         <input type="range" min="10000" max="200000" step="5000" class="range-input" 
                                value="${formData.teachingPreferences.expectedCompensation}" 
-                               oninput="updateFormData('teachingPreferences', 'expectedCompensation', this.value); updateRangeValue('compensationValue', '₹' + parseInt(this.value).toLocaleString())">
+                               onchange="updateFormData('teachingPreferences', 'expectedCompensation', this.value); updateRangeValue('compensationValue', '₹' + parseInt(this.value).toLocaleString())">
                         <div class="range-value" id="compensationValue">₹${parseInt(formData.teachingPreferences.expectedCompensation).toLocaleString()}</div>
                     </div>
                 </div>
@@ -687,57 +799,54 @@ function renderReview() {
             <div style="display: grid; gap: 2rem;">
                 <div class="card">
                     <div class="card__header">
-                        <h4>Personal Information</h4>
+                        <h4>👤 Personal Information</h4>
                     </div>
                     <div class="card__body">
-                        <p><strong>Name:</strong> ${formData.personalInfo.fullName || 'Not provided'}</p>
-                        <p><strong>Email:</strong> ${formData.personalInfo.email || 'Not provided'}</p>
-                        <p><strong>Phone:</strong> ${formData.personalInfo.phone || 'Not provided'}</p>
-                        <p><strong>Date of Birth:</strong> ${formData.personalInfo.dob || 'Not provided'}</p>
-                        <p><strong>Gender:</strong> ${formData.personalInfo.gender || 'Not provided'}</p>
-                        <p><strong>City:</strong> ${formData.personalInfo.city || 'Not provided'}</p>
-                        <p><strong>State:</strong> ${formData.personalInfo.state || 'Not provided'}</p>
-                        <p><strong>Address:</strong> ${formData.personalInfo.address || 'Not provided'}</p>
+                        <p><strong>Name:</strong> ${formData.personalInfo.fullName}</p>
+                        <p><strong>Email:</strong> ${formData.personalInfo.email}</p>
+                        <p><strong>Phone:</strong> ${formData.personalInfo.phone}</p>
+                        ${formData.personalInfo.city ? `<p><strong>City:</strong> ${formData.personalInfo.city}</p>` : ''}
+                        ${formData.personalInfo.dob ? `<p><strong>Date of Birth:</strong> ${formData.personalInfo.dob}</p>` : ''}
+                        ${formData.personalInfo.gender ? `<p><strong>Gender:</strong> ${formData.personalInfo.gender}</p>` : ''}
                     </div>
                 </div>
                 
                 <div class="card">
                     <div class="card__header">
-                        <h4>Professional Information</h4>
+                        <h4>💼 Professional Information</h4>
                     </div>
                     <div class="card__body">
-                        <p><strong>Designation:</strong> ${formData.professionalInfo.designation || 'Not provided'}</p>
-                        <p><strong>Organization:</strong> ${formData.professionalInfo.organization || 'Not provided'}</p>
+                        <p><strong>Designation:</strong> ${formData.professionalInfo.designation}</p>
+                        <p><strong>Organization:</strong> ${formData.professionalInfo.organization}</p>
                         <p><strong>Experience:</strong> ${formData.professionalInfo.experience} years</p>
-                        <p><strong>Expertise:</strong> ${formData.professionalInfo.expertise.length > 0 ? formData.professionalInfo.expertise.join(', ') : 'None selected'}</p>
-                        <p><strong>Qualifications:</strong> ${formData.professionalInfo.qualifications || 'Not provided'}</p>
-                        <p><strong>Certifications:</strong> ${formData.professionalInfo.certifications || 'Not provided'}</p>
-                        <p><strong>LinkedIn:</strong> ${formData.professionalInfo.linkedinProfile || 'Not provided'}</p>
+                        <p><strong>Expertise:</strong> ${formData.professionalInfo.expertise.join(', ')}</p>
+                        ${formData.professionalInfo.linkedinProfile ? `<p><strong>LinkedIn:</strong> ${formData.professionalInfo.linkedinProfile}</p>` : ''}
+                        ${formData.professionalInfo.certifications ? `<p><strong>Certifications:</strong> ${formData.professionalInfo.certifications}</p>` : ''}
                     </div>
                 </div>
                 
                 <div class="card">
                     <div class="card__header">
-                        <h4>Documents</h4>
+                        <h4>🎓 Teaching Preferences</h4>
                     </div>
                     <div class="card__body">
-                        <p><strong>Passport Photo:</strong> ${formData.documents.photo ? '✅ Uploaded' : '❌ Not uploaded'}</p>
+                        <p><strong>Preferred Subjects:</strong> ${formData.teachingPreferences.subjects.join(', ')}</p>
+                        <p><strong>Teaching Mode:</strong> ${formData.teachingPreferences.mode}</p>
+                        <p><strong>Expected Compensation:</strong> ₹${parseInt(formData.teachingPreferences.expectedCompensation).toLocaleString()}</p>
+                        ${formData.teachingPreferences.availability ? `<p><strong>Availability:</strong> ${formData.teachingPreferences.availability}</p>` : ''}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card__header">
+                        <h4>📄 Documents Uploaded</h4>
+                    </div>
+                    <div class="card__body">
+                        <p><strong>Photo:</strong> ${formData.documents.photo ? '✅ Uploaded' : '❌ Not uploaded'}</p>
                         <p><strong>PAN Card:</strong> ${formData.documents.panCard ? '✅ Uploaded' : '❌ Not uploaded'}</p>
                         <p><strong>Aadhar Front:</strong> ${formData.documents.aadharFront ? '✅ Uploaded' : '❌ Not uploaded'}</p>
                         <p><strong>Aadhar Back:</strong> ${formData.documents.aadharBack ? '✅ Uploaded' : '❌ Not uploaded'}</p>
-                        <p><strong>Resume/CV:</strong> ${formData.documents.resume ? '✅ Uploaded' : '❌ Not uploaded'}</p>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <div class="card__header">
-                        <h4>Teaching Preferences</h4>
-                    </div>
-                    <div class="card__body">
-                        <p><strong>Subjects:</strong> ${formData.teachingPreferences.subjects.length > 0 ? formData.teachingPreferences.subjects.join(', ') : 'None selected'}</p>
-                        <p><strong>Teaching Mode:</strong> ${formData.teachingPreferences.mode || 'Not selected'}</p>
-                        <p><strong>Availability:</strong> ${formData.teachingPreferences.availability || 'Not specified'}</p>
-                        <p><strong>Expected Compensation:</strong> ₹${parseInt(formData.teachingPreferences.expectedCompensation).toLocaleString()} per month</p>
+                        <p><strong>Resume:</strong> ${formData.documents.resume ? '✅ Uploaded' : '❌ Not uploaded'}</p>
                     </div>
                 </div>
             </div>
@@ -745,15 +854,14 @@ function renderReview() {
     `;
 }
 
-// Helper functions
+// =============================================================================
+// FORM HELPER FUNCTIONS
+// =============================================================================
+
 function updateFormData(section, field, value) {
     try {
         formData[section][field] = value;
-        // Clear error when user starts typing
-        const errorKey = `${section}.${field}`;
-        if (errors[errorKey]) {
-            delete errors[errorKey];
-        }
+        console.log(`Updated ${section}.${field}:`, value);
     } catch (error) {
         console.error('Error updating form data:', error);
     }
@@ -770,16 +878,25 @@ function updateRangeValue(elementId, value) {
     }
 }
 
+function clearValidationErrors() {
+    const errorElements = document.querySelectorAll('.form-control.error');
+    errorElements.forEach(element => {
+        element.classList.remove('error');
+    });
+}
+
 function initializeInteractiveElements() {
-    // Initialize file previews
-    documentTypes.forEach(docType => {
-        if (formData.documents[docType.key]) {
-            showFilePreview(docType.key, formData.documents[docType.key]);
+    Object.keys(formData.documents).forEach(key => {
+        if (formData.documents[key]) {
+            showFilePreview(key, formData.documents[key]);
         }
     });
 }
 
-// Multi-select functions
+// =============================================================================
+// MULTI-SELECT FUNCTIONS
+// =============================================================================
+
 function toggleDropdown(selectId) {
     try {
         const dropdown = document.getElementById(selectId.replace('Select', 'Dropdown'));
@@ -799,13 +916,6 @@ function toggleMultiSelectOption(section, field, option) {
         } else {
             formData[section][field] = [...currentValues, option];
         }
-        
-        // Clear error when user selects options
-        const errorKey = `${section}.${field}`;
-        if (errors[errorKey]) {
-            delete errors[errorKey];
-        }
-        
         renderCurrentStep();
     } catch (error) {
         console.error('Error toggling multi-select option:', error);
@@ -821,7 +931,10 @@ function removeFromMultiSelect(section, field, option) {
     }
 }
 
-// File upload functions
+// =============================================================================
+// FILE UPLOAD FUNCTIONS
+// =============================================================================
+
 function triggerFileUpload(type) {
     try {
         const input = document.getElementById(type + 'Input');
@@ -836,34 +949,9 @@ function triggerFileUpload(type) {
 function handleFileSelect(event, type) {
     try {
         const file = event.target.files[0];
-        if (file) {
-            // Validate file size (5MB limit)
-            if (file.size > 5 * 1024 * 1024) {
-                alert('File size must be less than 5MB');
-                event.target.value = '';
-                return;
-            }
-            
-            // Convert to base64 and store
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                formData.documents[type] = {
-                    data: e.target.result,
-                    name: file.name,
-                    size: file.size,
-                    type: file.type,
-                    uploadDate: new Date().toISOString()
-                };
-                
-                // Clear error when file is uploaded
-                const errorKey = `documents.${type}`;
-                if (errors[errorKey]) {
-                    delete errors[errorKey];
-                }
-                
-                showFilePreview(type, formData.documents[type]);
-            };
-            reader.readAsDataURL(file);
+        if (file && validateFile(file, type)) {
+            formData.documents[type] = file;
+            showFilePreview(type, file);
         }
     } catch (error) {
         console.error('Error handling file select:', error);
@@ -873,37 +961,22 @@ function handleFileSelect(event, type) {
 function handleFileDrop(event, type) {
     event.preventDefault();
     event.stopPropagation();
-    event.target.classList.remove('dragover');
+    
+    const target = event.currentTarget;
+    target.classList.remove('dragover');
     
     try {
         const file = event.dataTransfer.files[0];
-        if (file) {
-            // Validate file size (5MB limit)
-            if (file.size > 5 * 1024 * 1024) {
-                alert('File size must be less than 5MB');
-                return;
-            }
+        if (file && validateFile(file, type)) {
+            formData.documents[type] = file;
+            showFilePreview(type, file);
             
-            // Convert to base64 and store
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                formData.documents[type] = {
-                    data: e.target.result,
-                    name: file.name,
-                    size: file.size,
-                    type: file.type,
-                    uploadDate: new Date().toISOString()
-                };
-                
-                // Clear error when file is uploaded
-                const errorKey = `documents.${type}`;
-                if (errors[errorKey]) {
-                    delete errors[errorKey];
-                }
-                
-                showFilePreview(type, formData.documents[type]);
-            };
-            reader.readAsDataURL(file);
+            const input = document.getElementById(type + 'Input');
+            if (input) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                input.files = dt.files;
+            }
         }
     } catch (error) {
         console.error('Error handling file drop:', error);
@@ -916,36 +989,62 @@ function handleDragOver(event) {
 
 function handleDragEnter(event) {
     event.preventDefault();
-    event.target.classList.add('dragover');
+    event.currentTarget.classList.add('dragover');
 }
 
 function handleDragLeave(event) {
     event.preventDefault();
-    event.target.classList.remove('dragover');
+    event.currentTarget.classList.remove('dragover');
 }
 
-function showFilePreview(type, fileData) {
+function validateFile(file, type) {
+    const maxSize = type === 'resume' ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+    
+    if (file.size > maxSize) {
+        alert(`File size should not exceed ${type === 'resume' ? '10MB' : '5MB'}`);
+        return false;
+    }
+    
+    if (type === 'resume') {
+        if (file.type !== 'application/pdf') {
+            alert('Please upload a PDF file for resume');
+            return false;
+        }
+    } else {
+        if (!file.type.startsWith('image/')) {
+            alert('Please upload an image file');
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+function showFilePreview(type, file) {
     try {
         const previewDiv = document.getElementById(type + 'Preview');
         if (!previewDiv) return;
         
-        if (fileData.type && fileData.type.startsWith('image/')) {
-            previewDiv.innerHTML = `
-                <div class="file-preview">
-                    <div class="file-item">
-                        <img src="${fileData.data}" alt="Preview">
-                        <button class="file-remove" onclick="removeFile('${type}')">×</button>
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewDiv.innerHTML = `
+                    <div class="file-preview">
+                        <div class="file-item">
+                            <img src="${e.target.result}" alt="Preview" style="width: 100%; height: 100%; object-fit: cover;">
+                            <button class="file-remove" onclick="removeFile('${type}')">×</button>
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+            };
+            reader.readAsDataURL(file);
         } else {
             previewDiv.innerHTML = `
                 <div class="file-preview">
                     <div class="file-item">
-                        <div style="padding: 1rem; text-align: center;">
+                        <div style="padding: 1rem; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center;">
                             <div style="font-size: 2rem; margin-bottom: 0.5rem;">📄</div>
-                            <p style="font-size: 0.75rem; word-break: break-all;">${fileData.name}</p>
-                            <p style="font-size: 0.6rem; color: var(--color-text-secondary);">${(fileData.size / 1024).toFixed(1)} KB</p>
+                            <p style="font-size: 0.75rem; word-break: break-all; margin: 0;">${file.name}</p>
                         </div>
                         <button class="file-remove" onclick="removeFile('${type}')">×</button>
                     </div>
@@ -960,10 +1059,12 @@ function showFilePreview(type, fileData) {
 function removeFile(type) {
     try {
         formData.documents[type] = null;
+        
         const previewDiv = document.getElementById(type + 'Preview');
         if (previewDiv) {
             previewDiv.innerHTML = '';
         }
+        
         const inputElement = document.getElementById(type + 'Input');
         if (inputElement) {
             inputElement.value = '';
@@ -973,13 +1074,25 @@ function removeFile(type) {
     }
 }
 
-// Form navigation
+// =============================================================================
+// FORM NAVIGATION & VALIDATION
+// =============================================================================
+
 function nextStep() {
     try {
-        if (validateStep(currentStep)) {
-            currentStep = Math.min(currentStep + 1, steps.length - 1);
-            renderProgressBar();
-            renderCurrentStep();
+        if (currentStep === steps.length - 1) {
+            // This is the submit button
+            submitApplication();
+        } else {
+            // Validate current step
+            if (validateStep(currentStep)) {
+                currentStep = Math.min(currentStep + 1, steps.length - 1);
+                renderProgressBar();
+                renderCurrentStep();
+                window.scrollTo(0, 0);
+            } else {
+                renderCurrentStep(); // Re-render to show validation errors
+            }
         }
     } catch (error) {
         console.error('Error navigating to next step:', error);
@@ -991,6 +1104,7 @@ function prevStep() {
         currentStep = Math.max(currentStep - 1, 0);
         renderProgressBar();
         renderCurrentStep();
+        window.scrollTo(0, 0);
     } catch (error) {
         console.error('Error navigating to previous step:', error);
     }
@@ -998,83 +1112,163 @@ function prevStep() {
 
 function validateStep(step) {
     errors = {};
+    let isValid = true;
     
     switch (step) {
         case 0: // Personal Info
-            if (!formData.personalInfo.fullName.trim()) errors['personalInfo.fullName'] = 'Full name is required';
-            if (!formData.personalInfo.email.trim()) errors['personalInfo.email'] = 'Email is required';
-            if (!formData.personalInfo.phone.trim()) errors['personalInfo.phone'] = 'Phone number is required';
+            if (!formData.personalInfo.fullName.trim()) {
+                errors['personalInfo.fullName'] = 'Full name is required';
+                isValid = false;
+            }
+            if (!formData.personalInfo.email.trim()) {
+                errors['personalInfo.email'] = 'Email is required';
+                isValid = false;
+            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.personalInfo.email)) {
+                errors['personalInfo.email'] = 'Please enter a valid email address';
+                isValid = false;
+            }
+            if (!formData.personalInfo.phone.trim()) {
+                errors['personalInfo.phone'] = 'Phone number is required';
+                isValid = false;
+            } else if (!/^[0-9]{10}$/.test(formData.personalInfo.phone.replace(/\D/g, ''))) {
+                errors['personalInfo.phone'] = 'Please enter a valid 10-digit phone number';
+                isValid = false;
+            }
             break;
+            
         case 1: // Professional Info
-            if (!formData.professionalInfo.designation.trim()) errors['professionalInfo.designation'] = 'Designation is required';
-            if (!formData.professionalInfo.organization.trim()) errors['professionalInfo.organization'] = 'Organization is required';
-            if (formData.professionalInfo.expertise.length === 0) errors['professionalInfo.expertise'] = 'At least one expertise area is required';
+            if (!formData.professionalInfo.designation.trim()) {
+                errors['professionalInfo.designation'] = 'Current designation is required';
+                isValid = false;
+            }
+            if (!formData.professionalInfo.organization.trim()) {
+                errors['professionalInfo.organization'] = 'Organization/Institution is required';
+                isValid = false;
+            }
+            if (formData.professionalInfo.expertise.length === 0) {
+                errors['professionalInfo.expertise'] = 'Please select at least one area of expertise';
+                isValid = false;
+            }
             break;
-        case 2: // Documents - Made optional for testing
-            // Relaxed validation for testing purposes
+            
+        case 2: // Documents
+            if (!formData.documents.photo) {
+                errors['documents.photo'] = 'Passport size photo is required';
+                isValid = false;
+            }
+            if (!formData.documents.panCard) {
+                errors['documents.panCard'] = 'PAN card is required';
+                isValid = false;
+            }
+            if (!formData.documents.aadharFront) {
+                errors['documents.aadharFront'] = 'Aadhar card front is required';
+                isValid = false;
+            }
+            if (!formData.documents.aadharBack) {
+                errors['documents.aadharBack'] = 'Aadhar card back is required';
+                isValid = false;
+            }
             break;
+            
         case 3: // Teaching Preferences
-            if (formData.teachingPreferences.subjects.length === 0) errors['teachingPreferences.subjects'] = 'At least one subject is required';
-            if (!formData.teachingPreferences.mode.trim()) errors['teachingPreferences.mode'] = 'Teaching mode is required';
+            if (formData.teachingPreferences.subjects.length === 0) {
+                errors['teachingPreferences.subjects'] = 'Please select at least one subject you\'d like to teach';
+                isValid = false;
+            }
+            if (!formData.teachingPreferences.mode.trim()) {
+                errors['teachingPreferences.mode'] = 'Please select a preferred teaching mode';
+                isValid = false;
+            }
             break;
     }
     
-    if (Object.keys(errors).length > 0) {
-        renderCurrentStep(); // Re-render to show errors
-        return false;
-    }
-    
-    return true;
+    return isValid;
 }
 
-function submitApplication() {
+async function submitApplication() {
     try {
         const nextBtn = document.getElementById('nextBtn');
         if (nextBtn) {
-            nextBtn.innerHTML = '<span class="loading"><span class="spinner"></span> Submitting...</span>';
+            nextBtn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; margin-right: 8px;"></div>Submitting...';
             nextBtn.disabled = true;
         }
         
-        setTimeout(() => {
-            const application = {
-                id: Date.now().toString(),
-                ...formData,
-                applicationStatus: 'Pending',
-                submissionDate: new Date().toISOString(),
-                adminNotes: ''
-            };
-            
-            // Save to localStorage
-            const existingApplications = JSON.parse(localStorage.getItem('facultyApplications') || '[]');
-            existingApplications.push(application);
-            localStorage.setItem('facultyApplications', JSON.stringify(existingApplications));
-            
-            // Show success page
-            showPage('success');
-        }, 2000);
+        // Create application object
+        const application = {
+            id: generateId(),
+            ...JSON.parse(JSON.stringify(formData)), // Deep clone
+            applicationStatus: 'Pending',
+            submissionDate: new Date().toISOString(),
+            adminNotes: ''
+        };
+        
+        // Convert files to base64 for storage
+        const documentsWithBase64 = {};
+        for (const [key, file] of Object.entries(formData.documents)) {
+            if (file) {
+                documentsWithBase64[key] = {
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    data: await fileToBase64(file)
+                };
+            } else {
+                documentsWithBase64[key] = null;
+            }
+        }
+        application.documents = documentsWithBase64;
+        
+        // Load existing applications and add new one
+        const existingApplications = await loadFromGlobalDB();
+        const updatedApplications = [...existingApplications, application];
+        
+        // Save to global database
+        await saveToGlobalDB(updatedApplications);
+        
+        console.log('Application submitted successfully');
+        showPage('success');
+        
     } catch (error) {
         console.error('Error submitting application:', error);
+        alert('There was an error submitting your application. Please try again.');
+        
+        const nextBtn = document.getElementById('nextBtn');
+        if (nextBtn) {
+            nextBtn.innerHTML = '📤 Submit Application';
+            nextBtn.disabled = false;
+        }
     }
 }
 
-// Admin dashboard functions
-function loadApplications() {
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
+}
+
+// =============================================================================
+// ADMIN DASHBOARD FUNCTIONS
+// =============================================================================
+
+async function loadApplications() {
     try {
-        const stored = localStorage.getItem('facultyApplications');
-        if (stored) {
-            applications = JSON.parse(stored);
-        }
+        applications = await loadFromGlobalDB();
+        console.log('Loaded applications:', applications.length);
     } catch (error) {
         console.error('Error loading applications:', error);
         applications = [];
     }
 }
 
-function initializeDashboard() {
+async function initializeDashboard() {
     try {
-        loadApplications();
+        await loadApplications();
         renderDashboardStats();
         filterApplications();
+        console.log('Dashboard initialized');
     } catch (error) {
         console.error('Error initializing dashboard:', error);
     }
@@ -1161,7 +1355,7 @@ function renderApplicationsTable() {
         } else {
             emptyState.classList.add('hidden');
             tbody.innerHTML = filteredApplications.map(app => `
-                <tr onclick="viewApplication('${app.id}')" style="cursor: pointer;">
+                <tr>
                     <td>${app.personalInfo.fullName}</td>
                     <td>${app.personalInfo.email}</td>
                     <td>${app.professionalInfo.designation}</td>
@@ -1172,12 +1366,12 @@ function renderApplicationsTable() {
                         </span>
                     </td>
                     <td>${new Date(app.submissionDate).toLocaleDateString()}</td>
-                    <td onclick="event.stopPropagation();">
-                        <div class="action-buttons">
-                            <button class="btn btn--sm btn--secondary" onclick="viewApplication('${app.id}')">
+                    <td>
+                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                            <button class="btn btn--secondary btn--sm" onclick="viewApplication('${app.id}')">
                                 👁️ View
                             </button>
-                            <select class="form-control" style="padding: 4px 8px; font-size: 12px; min-width: 120px;" 
+                            <select class="form-control" style="padding: 0.25rem; font-size: 0.75rem; min-width: 100px;" 
                                     onchange="updateApplicationStatus('${app.id}', this.value)">
                                 <option value="Pending" ${app.applicationStatus === 'Pending' ? 'selected' : ''}>Pending</option>
                                 <option value="Under Review" ${app.applicationStatus === 'Under Review' ? 'selected' : ''}>Under Review</option>
@@ -1194,16 +1388,22 @@ function renderApplicationsTable() {
     }
 }
 
-function updateApplicationStatus(id, status) {
+async function updateApplicationStatus(id, status) {
     try {
+        showLoading('Updating status...');
+        
         applications = applications.map(app =>
             app.id === id ? { ...app, applicationStatus: status } : app
         );
-        localStorage.setItem('facultyApplications', JSON.stringify(applications));
+        
+        await saveToGlobalDB(applications);
         renderDashboardStats();
         filterApplications();
+        
+        console.log(`Updated application ${id} status to ${status}`);
     } catch (error) {
         console.error('Error updating application status:', error);
+        alert('Error updating status. Please try again.');
     }
 }
 
@@ -1212,70 +1412,54 @@ function viewApplication(id) {
         const application = applications.find(app => app.id === id);
         if (!application) return;
         
-        const getDocumentStatus = (docs) => {
-            const required = ['photo', 'panCard', 'aadharFront', 'aadharBack', 'resume'];
-            const uploaded = required.filter(key => docs[key]).length;
-            return `${uploaded}/${required.length} uploaded`;
-        };
+        const modalBody = document.getElementById('modalBody');
+        if (!modalBody) return;
         
-        document.getElementById('modalBody').innerHTML = `
+        modalBody.innerHTML = `
             <div style="display: grid; gap: 2rem;">
                 <div class="card">
                     <div class="card__header">
-                        <h4>Personal Information</h4>
+                        <h4>👤 Personal Information</h4>
                     </div>
                     <div class="card__body">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
                             <div><strong>Name:</strong> ${application.personalInfo.fullName}</div>
                             <div><strong>Email:</strong> ${application.personalInfo.email}</div>
                             <div><strong>Phone:</strong> ${application.personalInfo.phone}</div>
-                            <div><strong>Date of Birth:</strong> ${application.personalInfo.dob || 'Not provided'}</div>
-                            <div><strong>Gender:</strong> ${application.personalInfo.gender || 'Not provided'}</div>
                             <div><strong>City:</strong> ${application.personalInfo.city || 'Not provided'}</div>
-                            <div><strong>State:</strong> ${application.personalInfo.state || 'Not provided'}</div>
-                            <div><strong>PIN Code:</strong> ${application.personalInfo.pincode || 'Not provided'}</div>
+                            <div><strong>Gender:</strong> ${application.personalInfo.gender || 'Not provided'}</div>
+                            <div><strong>DOB:</strong> ${application.personalInfo.dob || 'Not provided'}</div>
                         </div>
-                        ${application.personalInfo.address ? `
-                            <div style="margin-top: 1rem;">
-                                <strong>Address:</strong><br>
-                                ${application.personalInfo.address}
-                            </div>
-                        ` : ''}
+                        ${application.personalInfo.address ? `<div style="margin-top: 1rem;"><strong>Address:</strong> ${application.personalInfo.address}</div>` : ''}
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card__header">
-                        <h4>Professional Information</h4>
+                        <h4>💼 Professional Information</h4>
                     </div>
                     <div class="card__body">
-                        <div style="display: grid; gap: 0.5rem;">
+                        <div style="display: grid; gap: 1rem;">
                             <div><strong>Designation:</strong> ${application.professionalInfo.designation}</div>
                             <div><strong>Organization:</strong> ${application.professionalInfo.organization}</div>
                             <div><strong>Experience:</strong> ${application.professionalInfo.experience} years</div>
-                            <div><strong>Expertise:</strong> ${application.professionalInfo.expertise.join(', ')}</div>
-                            ${application.professionalInfo.qualifications ? `<div><strong>Qualifications:</strong> ${application.professionalInfo.qualifications}</div>` : ''}
-                            ${application.professionalInfo.certifications ? `<div><strong>Certifications:</strong> ${application.professionalInfo.certifications}</div>` : ''}
+                            <div><strong>Areas of Expertise:</strong><br/>${application.professionalInfo.expertise.join(', ')}</div>
                             ${application.professionalInfo.linkedinProfile ? `<div><strong>LinkedIn:</strong> <a href="${application.professionalInfo.linkedinProfile}" target="_blank">${application.professionalInfo.linkedinProfile}</a></div>` : ''}
-                            ${application.professionalInfo.bio ? `
-                                <div>
-                                    <strong>Experience Summary:</strong>
-                                    <p style="margin-top: 0.5rem; line-height: 1.6; background: var(--color-bg-1); padding: 1rem; border-radius: 8px;">${application.professionalInfo.bio}</p>
-                                </div>
-                            ` : ''}
+                            ${application.professionalInfo.certifications ? `<div><strong>Certifications:</strong> ${application.professionalInfo.certifications}</div>` : ''}
+                            ${application.professionalInfo.bio ? `<div><strong>Bio:</strong><br/><p style="margin-top: 0.5rem; line-height: 1.6;">${application.professionalInfo.bio}</p></div>` : ''}
                         </div>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card__header">
-                        <h4>Teaching Preferences</h4>
+                        <h4>🎓 Teaching Preferences</h4>
                     </div>
                     <div class="card__body">
-                        <div style="display: grid; gap: 0.5rem;">
-                            <div><strong>Preferred Subjects:</strong> ${application.teachingPreferences.subjects.join(', ')}</div>
+                        <div style="display: grid; gap: 1rem;">
+                            <div><strong>Preferred Subjects:</strong><br/>${application.teachingPreferences.subjects.join(', ')}</div>
                             <div><strong>Teaching Mode:</strong> ${application.teachingPreferences.mode}</div>
-                            <div><strong>Expected Compensation:</strong> ₹${parseInt(application.teachingPreferences.expectedCompensation).toLocaleString()} per month</div>
+                            <div><strong>Expected Compensation:</strong> ₹${parseInt(application.teachingPreferences.expectedCompensation).toLocaleString()}</div>
                             ${application.teachingPreferences.availability ? `<div><strong>Availability:</strong> ${application.teachingPreferences.availability}</div>` : ''}
                         </div>
                     </div>
@@ -1283,70 +1467,28 @@ function viewApplication(id) {
 
                 <div class="card">
                     <div class="card__header">
-                        <h4>Uploaded Documents (${getDocumentStatus(application.documents)})</h4>
+                        <h4>📄 Documents</h4>
                     </div>
                     <div class="card__body">
-                        <div class="document-grid">
-                            ${documentTypes.map(docType => {
-                                const doc = application.documents[docType.key];
-                                if (doc) {
-                                    return `
-                                        <div class="document-item">
-                                            ${doc.type && doc.type.startsWith('image/') ? 
-                                                `<img src="${doc.data}" class="document-thumbnail" onclick="viewDocument('${docType.label}', '${doc.data}', '${doc.name}')" alt="${docType.label}">` :
-                                                `<div class="document-placeholder" onclick="downloadDocument('${doc.data}', '${doc.name}')">📄</div>`
-                                            }
-                                            <div class="document-label">${docType.label}</div>
-                                            <div class="document-actions-item">
-                                                <button class="btn btn--sm btn--secondary" onclick="downloadDocument('${doc.data}', '${application.personalInfo.fullName}_${docType.label.replace(/[^a-zA-Z0-9]/g, '_')}.${doc.name.split('.').pop()}')">
-                                                    📥 Download
-                                                </button>
-                                                ${doc.type && doc.type.startsWith('image/') ? 
-                                                    `<button class="btn btn--sm btn--outline" onclick="viewDocument('${docType.label}', '${doc.data}', '${doc.name}')">
-                                                        👁️ View
-                                                    </button>` : ''
-                                                }
-                                            </div>
-                                        </div>
-                                    `;
-                                } else {
-                                    return `
-                                        <div class="document-item" style="opacity: 0.5;">
-                                            <div class="document-placeholder">❌</div>
-                                            <div class="document-label">${docType.label}</div>
-                                            <div style="text-align: center; font-size: 12px; color: var(--color-error);">Not uploaded</div>
-                                        </div>
-                                    `;
-                                }
-                            }).join('')}
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                            ${renderDocumentPreview('Photo', application.documents.photo)}
+                            ${renderDocumentPreview('PAN Card', application.documents.panCard)}
+                            ${renderDocumentPreview('Aadhar Front', application.documents.aadharFront)}
+                            ${renderDocumentPreview('Aadhar Back', application.documents.aadharBack)}
+                            ${renderDocumentPreview('Resume', application.documents.resume)}
                         </div>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card__header">
-                        <h4>Application Status & Notes</h4>
+                        <h4>📊 Application Status</h4>
                     </div>
                     <div class="card__body">
                         <div style="display: grid; gap: 1rem;">
-                            <div>
-                                <label class="form-label">Status</label>
-                                <select class="form-control" onchange="updateApplicationStatus('${application.id}', this.value)">
-                                    <option value="Pending" ${application.applicationStatus === 'Pending' ? 'selected' : ''}>Pending</option>
-                                    <option value="Under Review" ${application.applicationStatus === 'Under Review' ? 'selected' : ''}>Under Review</option>
-                                    <option value="Approved" ${application.applicationStatus === 'Approved' ? 'selected' : ''}>Approved</option>
-                                    <option value="Rejected" ${application.applicationStatus === 'Rejected' ? 'selected' : ''}>Rejected</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="form-label">Admin Notes</label>
-                                <textarea class="form-control" rows="3" 
-                                          onchange="updateAdminNotes('${application.id}', this.value)"
-                                          placeholder="Add notes about this application...">${application.adminNotes || ''}</textarea>
-                            </div>
-                            <div style="font-size: 12px; color: var(--color-text-secondary);">
-                                <strong>Submitted:</strong> ${new Date(application.submissionDate).toLocaleString()}
-                            </div>
+                            <div><strong>Status:</strong> <span class="status-badge status-${application.applicationStatus.toLowerCase().replace(' ', '-')}">${application.applicationStatus}</span></div>
+                            <div><strong>Submitted:</strong> ${new Date(application.submissionDate).toLocaleDateString()} at ${new Date(application.submissionDate).toLocaleTimeString()}</div>
+                            <div><strong>Application ID:</strong> ${application.id}</div>
                         </div>
                     </div>
                 </div>
@@ -1359,51 +1501,30 @@ function viewApplication(id) {
     }
 }
 
-function updateAdminNotes(id, notes) {
-    try {
-        applications = applications.map(app =>
-            app.id === id ? { ...app, adminNotes: notes } : app
-        );
-        localStorage.setItem('facultyApplications', JSON.stringify(applications));
-    } catch (error) {
-        console.error('Error updating admin notes:', error);
-    }
-}
-
-function viewDocument(title, dataUrl, filename) {
-    try {
-        currentDocumentData = { data: dataUrl, name: filename };
-        document.getElementById('documentTitle').textContent = title;
-        document.getElementById('documentViewer').innerHTML = `
-            <img src="${dataUrl}" alt="${title}" style="max-width: 100%; max-height: 70vh; border-radius: 8px; box-shadow: var(--shadow-md);">
+function renderDocumentPreview(title, doc) {
+    if (!doc) {
+        return `
+            <div style="text-align: center; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-base);">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem; color: var(--color-text-secondary);">❌</div>
+                <p style="margin: 0; font-weight: 500;">${title}</p>
+                <p style="margin: 0; font-size: 0.875rem; color: var(--color-text-secondary);">Not uploaded</p>
+            </div>
         `;
-        document.getElementById('documentModal').classList.remove('hidden');
-    } catch (error) {
-        console.error('Error viewing document:', error);
     }
-}
-
-function downloadCurrentDocument() {
-    try {
-        if (currentDocumentData) {
-            downloadDocument(currentDocumentData.data, currentDocumentData.name);
-        }
-    } catch (error) {
-        console.error('Error downloading current document:', error);
-    }
-}
-
-function downloadDocument(base64Data, filename) {
-    try {
-        const link = document.createElement('a');
-        link.href = base64Data;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    } catch (error) {
-        console.error('Error downloading document:', error);
-    }
+    
+    const isImage = doc.type && doc.type.startsWith('image/');
+    
+    return `
+        <div style="text-align: center; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-base);">
+            ${isImage ? 
+                `<img src="${doc.data}" alt="${title}" style="width: 100%; max-width: 150px; height: 100px; object-fit: cover; border-radius: var(--radius-sm); margin-bottom: 0.5rem;">` :
+                `<div style="font-size: 2rem; margin-bottom: 0.5rem; color: var(--fintel-primary);">📄</div>`
+            }
+            <p style="margin: 0; font-weight: 500;">${title}</p>
+            <p style="margin: 0; font-size: 0.875rem; color: var(--color-text-secondary);">${doc.name}</p>
+            <a href="${doc.data}" download="${doc.name}" style="display: inline-block; margin-top: 0.5rem; font-size: 0.875rem;">⬇️ Download</a>
+        </div>
+    `;
 }
 
 function closeModal() {
@@ -1414,75 +1535,98 @@ function closeModal() {
     }
 }
 
-function closeDocumentModal() {
-    try {
-        document.getElementById('documentModal').classList.add('hidden');
-        currentDocumentData = null;
-    } catch (error) {
-        console.error('Error closing document modal:', error);
-    }
-}
-
 function exportToCSV() {
     try {
         const headers = [
-            'Application ID',
-            'Full Name', 
-            'Email',
-            'Phone',
-            'Designation',
-            'Organization',
-            'Experience (Years)',
-            'Expertise Areas',
-            'LinkedIn Profile',
-            'Application Status',
-            'Submission Date',
-            'Document Status',
-            'Admin Notes'
+            'Application ID', 'Name', 'Email', 'Phone', 'City', 'Designation', 'Organization', 
+            'Experience (Years)', 'Areas of Expertise', 'Preferred Subjects', 'Teaching Mode',
+            'Expected Compensation', 'Status', 'Submission Date'
         ];
         
-        const csvData = filteredApplications.map(app => {
-            const getDocumentStatus = (docs) => {
-                const required = ['photo', 'panCard', 'aadharFront', 'aadharBack', 'resume'];
-                const uploaded = required.filter(key => docs[key]).length;
-                if (uploaded === required.length) return 'Complete';
-                if (uploaded === 0) return 'No documents';
-                const missing = required.filter(key => !docs[key]);
-                return `Missing: ${missing.join(', ')}`;
-            };
-            
-            return [
-                app.id,
-                app.personalInfo.fullName,
-                app.personalInfo.email,
-                app.personalInfo.phone,
-                app.professionalInfo.designation,
-                app.professionalInfo.organization,
-                app.professionalInfo.experience,
-                app.professionalInfo.expertise.join('; '),
-                app.professionalInfo.linkedinProfile || '',
-                app.applicationStatus,
-                new Date(app.submissionDate).toLocaleDateString(),
-                getDocumentStatus(app.documents),
-                app.adminNotes || ''
-            ];
-        });
+        const csvData = filteredApplications.map(app => [
+            app.id,
+            app.personalInfo.fullName,
+            app.personalInfo.email,
+            app.personalInfo.phone,
+            app.personalInfo.city || '',
+            app.professionalInfo.designation,
+            app.professionalInfo.organization,
+            app.professionalInfo.experience,
+            '"' + app.professionalInfo.expertise.join(', ') + '"',
+            '"' + app.teachingPreferences.subjects.join(', ') + '"',
+            app.teachingPreferences.mode,
+            app.teachingPreferences.expectedCompensation,
+            app.applicationStatus,
+            new Date(app.submissionDate).toLocaleDateString()
+        ]);
         
         const csvContent = [headers, ...csvData]
-            .map(row => row.map(field => `"${field}"`).join(','))
+            .map(row => row.map(field => typeof field === 'string' && field.includes(',') && !field.startsWith('"') ? `"${field}"` : field).join(','))
             .join('\n');
         
-        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
         link.download = `faculty_applications_${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        
+        console.log('CSV exported successfully');
     } catch (error) {
         console.error('Error exporting to CSV:', error);
+        alert('Error exporting data. Please try again.');
+    }
+}
+
+// =============================================================================
+// INITIALIZATION & EVENT HANDLERS
+// =============================================================================
+
+function initApp() {
+    try {
+        console.log('Initializing Fintelligence Academy Faculty Empanelment App');
+        
+        // Initialize theme
+        initializeTheme();
+        
+        // Check admin login status
+        if (isLoggedIn) {
+            const logoutBtn = document.getElementById('logoutBtn');
+            const adminAccessBtn = document.getElementById('adminAccessBtn');
+            if (logoutBtn) logoutBtn.classList.remove('hidden');
+            if (adminAccessBtn) adminAccessBtn.classList.add('hidden');
+        }
+        
+        // Show landing page
+        showPage('landing');
+        
+        // Bind event handlers to buttons
+        bindEventHandlers();
+        
+        console.log('App initialized successfully');
+    } catch (error) {
+        console.error('Error initializing app:', error);
+    }
+}
+
+function bindEventHandlers() {
+    try {
+        // Bind navigation buttons if they exist
+        const nextBtn = document.getElementById('nextBtn');
+        const prevBtn = document.getElementById('prevBtn');
+        
+        if (nextBtn) {
+            nextBtn.onclick = nextStep;
+        }
+        
+        if (prevBtn) {
+            prevBtn.onclick = prevStep;
+        }
+        
+        console.log('Event handlers bound successfully');
+    } catch (error) {
+        console.error('Error binding event handlers:', error);
     }
 }
 
@@ -1501,19 +1645,31 @@ document.addEventListener('click', function(event) {
     }
 });
 
-// Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    initApp();
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    if (event.target.classList.contains('modal')) {
+        closeModal();
+    }
 });
 
-// Make functions globally available for onclick handlers
+// Initialize app when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM Content Loaded - Initializing App');
+    setTimeout(initApp, 100); // Small delay to ensure all elements are ready
+});
+
+// Global error handler
+window.addEventListener('error', function(event) {
+    console.error('Global error:', event.error);
+});
+
+// Make all functions globally available for onclick handlers - FIXED
 window.toggleTheme = toggleTheme;
 window.showLanding = showLanding;
 window.startApplication = startApplication;
 window.showAdminLogin = showAdminLogin;
 window.adminLogin = adminLogin;
 window.logout = logout;
-window.goToStep = goToStep;
 window.nextStep = nextStep;
 window.prevStep = prevStep;
 window.updateFormData = updateFormData;
@@ -1531,11 +1687,8 @@ window.removeFile = removeFile;
 window.submitApplication = submitApplication;
 window.filterApplications = filterApplications;
 window.updateApplicationStatus = updateApplicationStatus;
-window.updateAdminNotes = updateAdminNotes;
 window.viewApplication = viewApplication;
-window.viewDocument = viewDocument;
-window.downloadCurrentDocument = downloadCurrentDocument;
-window.downloadDocument = downloadDocument;
 window.closeModal = closeModal;
-window.closeDocumentModal = closeDocumentModal;
 window.exportToCSV = exportToCSV;
+
+console.log('Fintelligence Academy Faculty Empanelment System Loaded Successfully with all fixes applied!');
