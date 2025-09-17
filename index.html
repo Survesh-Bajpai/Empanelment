@@ -3,20 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Faculty Empanelment – Fintelligence Academy</title>
+    <title>Faculty Empanelment - Fintelligence Academy</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="app">
+        <!-- Toast Notifications -->
+        <div id="toastContainer" class="toast-container"></div>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="loading-content">
+                <div class="spinner-large"></div>
+                <p id="loadingMessage">Loading...</p>
+            </div>
+        </div>
+
         <!-- Header -->
         <header class="header">
-            <div class="header-content container flex items-center justify-between">
-                <div class="logo flex items-center gap-8" onclick="showLanding()">
+            <div class="header-content">
+                <div class="logo" onclick="showLanding()">
                     <div class="logo-icon">F</div>
-                    <span class="logo-text">Fintelligence Academy</span>
+                    <span>Fintelligence Academy</span>
                 </div>
-                <div class="flex items-center gap-16">
-                    <button id="logoutBtn" class="btn btn--secondary hidden" onclick="logout()">🚪 Logout</button>
+                <div class="header-actions">
+                    <div id="statusIndicator" class="status-indicator hidden">
+                        <span class="status-dot"></span>
+                        <span id="statusText">Database: Checking...</span>
+                    </div>
+                    <button id="logoutBtn" class="btn btn--secondary hidden" onclick="logout()">
+                        🚪 Logout
+                    </button>
                     <button class="theme-toggle" onclick="toggleTheme()">
                         <span id="themeIcon">🌙</span>
                         <span id="themeText">Dark</span>
@@ -25,302 +42,131 @@
             </div>
         </header>
 
-        <!-- Loading Indicator -->
-        <div id="loadingIndicator" class="loading-indicator hidden">
-            <div class="loading-content">
-                <div class="loading-spinner"></div>
-                <p id="loadingText">Processing...</p>
-            </div>
-        </div>
-
-        <!-- Toast Notifications -->
-        <div id="toastContainer" class="toast-container"></div>
-
         <!-- Main Content -->
         <main id="mainContent">
             <!-- Landing Page -->
             <div id="landingPage">
                 <section class="hero">
-                    <div class="hero-content container">
+                    <div class="hero-content">
                         <h1>Join Our Faculty Team</h1>
                         <p>
-                            Empower the next generation of finance professionals by sharing your expertise at
-                            Fintelligence Academy. Join our community of distinguished educators.
+                            Empower the next generation of finance professionals by sharing your expertise 
+                            at Fintelligence Academy. Join our community of distinguished educators.
                         </p>
-                        <button class="btn btn--primary btn--lg" onclick="startApplication()">🚀 Start Your Application</button>
+                        <button class="btn btn--primary btn--lg" onclick="startApplication()">
+                            🚀 Start Your Application
+                        </button>
                     </div>
                 </section>
-                <section class="container" style="padding: 4rem 0;">
-                    <div class="info-grid">
-                        <div class="card text-center">
+
+                <div class="container">
+                    <div class="benefits-grid">
+                        <div class="card">
                             <div class="card__body">
-                                <div style="font-size: 3rem; color: var(--color-primary);">👥</div>
+                                <div class="benefit-icon">👥</div>
                                 <h3>Expert Community</h3>
-                                <p>Join a prestigious community of experts shaping the future of finance education.</p>
+                                <p>Join a prestigious community of finance and technology experts shaping the future of education.</p>
                             </div>
                         </div>
-                        <div class="card text-center">
+
+                        <div class="card">
                             <div class="card__body">
-                                <div style="font-size: 3rem; color: var(--color-primary);">💻</div>
+                                <div class="benefit-icon">💻</div>
                                 <h3>Flexible Teaching</h3>
-                                <p>Choose online, offline or hybrid teaching and set your own schedule.</p>
+                                <p>Choose your preferred teaching mode - online, offline, or hybrid - and set your own schedule.</p>
                             </div>
                         </div>
-                        <div class="card text-center">
+
+                        <div class="card">
                             <div class="card__body">
-                                <div style="font-size: 3rem; color: var(--color-primary);">📈</div>
+                                <div class="benefit-icon">📈</div>
                                 <h3>Competitive Compensation</h3>
-                                <p>Earn competitive compensation while making meaningful impact.</p>
+                                <p>Earn competitive compensation while making a meaningful impact in finance education.</p>
                             </div>
                         </div>
                     </div>
-                    <div class="card text-center cta-card">
-                        <div class="card__body flex flex-col items-center gap-16">
-                            <h2>Ready to Make an Impact?</h2>
-                            <p>Start your empanelment journey today and help shape the future of finance education.</p>
-                            <button class="btn btn--primary btn--lg" onclick="startApplication()">Begin Application Process</button>
+
+                    <div class="cta-section">
+                        <div class="card">
+                            <div class="card__body">
+                                <h2>Ready to Make an Impact?</h2>
+                                <p>Start your empanelment journey today and help shape the future of finance education.</p>
+                                <button class="btn btn--primary btn--lg" onclick="startApplication()">
+                                    Begin Application Process
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </section>
+                </div>
             </div>
 
-            <!-- Application Form Page -->
+            <!-- Application Form -->
             <div id="applicationPage" class="hidden">
-                <div class="container" style="padding: 2rem 0;">
-                    <div class="form-progress">
-                        <div class="progress-steps">
-                            <div class="step active" data-step="0">
-                                <span class="step-number">1</span>
-                                <span class="step-title">Personal Info</span>
-                            </div>
-                            <div class="step" data-step="1">
-                                <span class="step-number">2</span>
-                                <span class="step-title">Professional</span>
-                            </div>
-                            <div class="step" data-step="2">
-                                <span class="step-number">3</span>
-                                <span class="step-title">Documents</span>
-                            </div>
-                            <div class="step" data-step="3">
-                                <span class="step-number">4</span>
-                                <span class="step-title">Teaching</span>
-                            </div>
-                        </div>
-                    </div>
+                <div class="container">
+                    <div class="form-wizard">
+                        <div class="progress-bar" id="progressBar"></div>
 
-                    <div class="application-form">
-                        <!-- Step 1: Personal Information -->
-                        <div class="form-step active" id="step-0">
-                            <div class="card">
-                                <div class="card__header">
-                                    <h3>Personal Information</h3>
-                                    <p>Tell us about yourself</p>
-                                </div>
-                                <div class="card__body">
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label class="form-label">Full Name *</label>
-                                            <input type="text" id="fullName" class="form-control" required>
-                                        </div>
-                                        <div class="form-group">
-                                            <label class="form-label">Email Address *</label>
-                                            <input type="email" id="email" class="form-control" required>
-                                        </div>
-                                    </div>
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label class="form-label">Phone Number *</label>
-                                            <input type="tel" id="phone" class="form-control" required>
-                                        </div>
-                                        <div class="form-group">
-                                            <label class="form-label">Date of Birth</label>
-                                            <input type="date" id="dob" class="form-control">
-                                        </div>
-                                    </div>
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label class="form-label">Gender</label>
-                                            <select id="gender" class="form-control">
-                                                <option value="">Select Gender</option>
-                                                <option value="Male">Male</option>
-                                                <option value="Female">Female</option>
-                                                <option value="Other">Other</option>
-                                            </select>
-                                        </div>
-                                        <div class="form-group">
-                                            <label class="form-label">City *</label>
-                                            <input type="text" id="city" class="form-control" required>
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Complete Address</label>
-                                        <textarea id="address" class="form-control" rows="3"></textarea>
-                                    </div>
+                        <div class="card">
+                            <div class="card__body">
+                                <div id="formSteps"></div>
+                                
+                                <div class="form-navigation">
+                                    <button type="button" class="btn btn--secondary" id="prevBtn" onclick="prevStep()" disabled>
+                                        ← Previous
+                                    </button>
+                                    
+                                    <button type="button" class="btn btn--primary" id="nextBtn" onclick="nextStep()">
+                                        Next →
+                                    </button>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- Step 2: Professional Information -->
-                        <div class="form-step" id="step-1">
-                            <div class="card">
-                                <div class="card__header">
-                                    <h3>Professional Information</h3>
-                                    <p>Your career and expertise details</p>
-                                </div>
-                                <div class="card__body">
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label class="form-label">Current Designation *</label>
-                                            <input type="text" id="designation" class="form-control" required>
-                                        </div>
-                                        <div class="form-group">
-                                            <label class="form-label">Organization *</label>
-                                            <input type="text" id="organization" class="form-control" required>
-                                        </div>
-                                    </div>
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label class="form-label">Years of Experience *</label>
-                                            <select id="experience" class="form-control" required>
-                                                <option value="">Select Experience</option>
-                                                <option value="1-2">1-2 years</option>
-                                                <option value="3-5">3-5 years</option>
-                                                <option value="6-10">6-10 years</option>
-                                                <option value="11-15">11-15 years</option>
-                                                <option value="16-20">16-20 years</option>
-                                                <option value="20+">20+ years</option>
-                                            </select>
-                                        </div>
-                                        <div class="form-group">
-                                            <label class="form-label">LinkedIn Profile</label>
-                                            <input type="url" id="linkedinProfile" class="form-control">
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Areas of Expertise *</label>
-                                        <div class="checkbox-group" id="expertiseGroup"></div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Qualifications & Degrees *</label>
-                                        <textarea id="qualifications" class="form-control" rows="3" placeholder="List your educational qualifications, degrees, certifications..." required></textarea>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Professional Bio</label>
-                                        <textarea id="bio" class="form-control" rows="4" placeholder="Brief description of your professional background and achievements..."></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Step 3: Documents -->
-                        <div class="form-step" id="step-2">
-                            <div class="card">
-                                <div class="card__header">
-                                    <h3>Document Upload</h3>
-                                    <p>Please upload the required documents</p>
-                                </div>
-                                <div class="card__body">
-                                    <div class="document-upload-grid" id="documentUploadGrid"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Step 4: Teaching Preferences -->
-                        <div class="form-step" id="step-3">
-                            <div class="card">
-                                <div class="card__header">
-                                    <h3>Teaching Preferences</h3>
-                                    <p>Tell us about your teaching preferences</p>
-                                </div>
-                                <div class="card__body">
-                                    <div class="form-group">
-                                        <label class="form-label">Preferred Subjects to Teach *</label>
-                                        <div class="checkbox-group" id="subjectsGroup"></div>
-                                    </div>
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label class="form-label">Teaching Mode *</label>
-                                            <select id="teachingMode" class="form-control" required>
-                                                <option value="">Select Mode</option>
-                                                <option value="Online">Online Only</option>
-                                                <option value="Offline">Offline Only</option>
-                                                <option value="Hybrid">Hybrid (Both)</option>
-                                            </select>
-                                        </div>
-                                        <div class="form-group">
-                                            <label class="form-label">Expected Compensation (Monthly)</label>
-                                            <select id="expectedCompensation" class="form-control">
-                                                <option value="">Select Range</option>
-                                                <option value="25000-50000">₹25,000 - ₹50,000</option>
-                                                <option value="50000-75000">₹50,000 - ₹75,000</option>
-                                                <option value="75000-100000">₹75,000 - ₹1,00,000</option>
-                                                <option value="100000-150000">₹1,00,000 - ₹1,50,000</option>
-                                                <option value="150000+">₹1,50,000+</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Availability</label>
-                                        <textarea id="availability" class="form-control" rows="3" placeholder="Please describe your availability (days, timings, any constraints)..."></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Form Navigation -->
-                        <div class="form-navigation">
-                            <button type="button" id="prevBtn" class="btn btn--secondary" onclick="changeStep(-1)" style="display:none;">Previous</button>
-                            <button type="button" id="nextBtn" class="btn btn--primary" onclick="changeStep(1)">Next</button>
-                            <button type="button" id="submitBtn" class="btn btn--primary" onclick="submitApplication()" style="display:none;">Submit Application</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Admin Login Page -->
+            <!-- Admin Login -->
             <div id="adminLoginPage" class="hidden">
-                <div class="container" style="padding: 4rem 0;">
-                    <div class="card" style="max-width: 400px; margin: 0 auto;">
-                        <div class="card__header text-center">
-                            <div class="logo-icon" style="margin: 0 auto 16px;">F</div>
+                <div class="auth-container">
+                    <form class="auth-form" onsubmit="adminLogin(event)">
+                        <div class="auth-header">
+                            <div class="logo-icon">F</div>
                             <h2>Admin Login</h2>
-                            <p style="color: var(--color-text-secondary);">Access the faculty empanelment dashboard</p>
+                            <p>Access the faculty empanelment dashboard</p>
                         </div>
-                        <div class="card__body">
-                            <form onsubmit="adminLogin(event)">
-                                <div id="loginError" class="hidden status status--error" style="margin-bottom: 16px;"></div>
-                                <div class="form-group">
-                                    <label class="form-label">Email Address</label>
-                                    <input type="email" id="adminEmail" class="form-control" value="Survesh@fintelligenceacademy.com" required>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Password</label>
-                                    <input type="password" id="adminPassword" class="form-control" value="Self@1111" required>
-                                </div>
-                                <button type="submit" class="btn btn--primary btn--full-width">Login</button>
-                            </form>
+                        
+                        <div id="loginError" class="alert alert--error hidden"></div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" id="adminEmail" class="form-control" required>
                         </div>
-                    </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Password</label>
+                            <input type="password" id="adminPassword" class="form-control" required>
+                        </div>
+                        
+                        <button type="submit" class="btn btn--primary btn--full-width" id="loginBtn">
+                            Login
+                        </button>
+                    </form>
                 </div>
             </div>
 
-            <!-- Admin Dashboard Page -->
+            <!-- Admin Dashboard -->
             <div id="adminDashboard" class="hidden">
                 <div class="admin-container">
-                    <div style="margin-bottom: 32px;">
+                    <div class="dashboard-header">
                         <h1>Faculty Empanelment Dashboard</h1>
-                        <p style="color: var(--color-text-secondary);">Manage and review faculty applications with global database sync</p>
-                        <div class="status-indicator" id="dbStatus">
-                            <span class="status-dot"></span>
-                            <span id="dbStatusText">Database: Connected</span>
-                        </div>
+                        <p>Manage and review faculty applications</p>
                     </div>
 
                     <div class="dashboard-stats" id="dashboardStats"></div>
 
                     <div class="dashboard-controls">
                         <div class="search-filters">
-                            <input type="text" class="form-control search-input" placeholder="Search applications..." id="searchInput" oninput="filterApplications()">
+                            <input type="text" class="form-control" placeholder="Search applications..." id="searchInput" oninput="filterApplications()">
                             <select class="form-control" id="statusFilter" onchange="filterApplications()">
                                 <option value="">All Status</option>
                                 <option value="Pending">Pending</option>
@@ -329,17 +175,21 @@
                                 <option value="Rejected">Rejected</option>
                             </select>
                         </div>
-                        <div class="admin-actions">
-                            <button class="btn btn--outline" onclick="syncDatabase()">🔄 Sync Database</button>
-                            <button class="btn btn--secondary" onclick="exportData()">📤 Export</button>
-                            <button class="btn btn--secondary" onclick="importData()">📥 Import</button>
-                            <input type="file" id="importFile" accept=".json" onchange="handleImportFile(event)" style="display:none;">
-                            <button class="btn btn--primary" onclick="exportToCSV()">💾 Export CSV</button>
+                        <div class="dashboard-actions">
+                            <button class="btn btn--secondary" onclick="syncDatabase()">
+                                🔄 Sync Database
+                            </button>
+                            <button class="btn btn--secondary" onclick="addTestData()">
+                                🧪 Add Test Data
+                            </button>
+                            <button class="btn btn--primary" onclick="exportToCSV()">
+                                💾 Export CSV
+                            </button>
                         </div>
                     </div>
 
-                    <div class="data-table">
-                        <table class="table">
+                    <div class="data-table-container">
+                        <table class="data-table">
                             <thead>
                                 <tr>
                                     <th>Name</th>
@@ -347,15 +197,19 @@
                                     <th>Designation</th>
                                     <th>Experience</th>
                                     <th>Status</th>
-                                    <th>Documents</th>
+                                    <th>Applied</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="applicationsTable"></tbody>
+                            <tbody id="applicationsTable">
+                            </tbody>
                         </table>
-                        <div id="emptyState" class="hidden text-center" style="padding: 3rem; color: var(--color-text-secondary);">
-                            <div style="font-size: 3rem; margin-bottom: 1rem;">📥</div>
+                        <div id="emptyState" class="empty-state hidden">
+                            <div class="empty-icon">📥</div>
                             <p>No applications found</p>
+                            <button class="btn btn--secondary" onclick="addTestData()">
+                                Add Test Data
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -363,33 +217,30 @@
 
             <!-- Success Page -->
             <div id="successPage" class="hidden">
-                <div class="container text-center" style="padding: 4rem 0;">
-                    <div style="font-size: 4rem; color: var(--color-success); margin-bottom: 2rem;">✅</div>
+                <div class="success-container">
+                    <div class="success-icon">✅</div>
                     <h2>Application Submitted Successfully!</h2>
-                    <p>Thank you for your interest in joining Fintelligence Academy. Your application has been saved globally and our team will review it soon.</p>
-                    <div class="card" style="max-width: 600px; margin: 2rem auto;">
-                        <div class="card__body">
-                            <h4>What happens next?</h4>
-                            <ul style="text-align: left; margin: 1rem 0;">
-                                <li>📧 You'll receive an email confirmation within 24 hours</li>
-                                <li>👥 Our academic team will review your application</li>
-                                <li>📞 If shortlisted, we'll schedule an interview</li>
-                                <li>🎉 Welcome to Fintelligence Academy family!</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <button class="btn btn--primary btn--lg" onclick="showLanding()">Return to Home</button>
+                    <p>
+                        Thank you for your interest in joining Fintelligence Academy as a faculty member. 
+                        Our team will review your application and get back to you within 5-7 business days.
+                    </p>
+                    <button class="btn btn--primary btn--lg" onclick="showLanding()">
+                        ➕ Submit Another Application
+                    </button>
                 </div>
             </div>
         </main>
 
-        <!-- Floating Admin Access Button -->
-        <button id="adminAccessBtn" class="admin-access-btn" onclick="showAdminLogin()" title="Admin Access">⚙️</button>
+        <!-- Admin Access Button -->
+        <button id="adminAccessBtn" class="admin-access-btn" onclick="showAdminLogin()" title="Admin Access">
+            ⚙️
+        </button>
 
         <!-- Application Detail Modal -->
         <div id="applicationModal" class="modal hidden">
+            <div class="modal-backdrop" onclick="closeModal()"></div>
             <div class="modal-content">
-                <div class="modal-header flex items-center justify-between">
+                <div class="modal-header">
                     <h3>Application Details</h3>
                     <button class="modal-close" onclick="closeModal()">×</button>
                 </div>
@@ -397,38 +248,26 @@
             </div>
         </div>
 
-        <!-- Status Update Modal -->
-        <div id="statusModal" class="modal hidden">
-            <div class="modal-content" style="max-width: 500px;">
-                <div class="modal-header flex items-center justify-between">
-                    <h3>Update Application Status</h3>
-                    <button class="modal-close" onclick="closeStatusModal()">×</button>
+        <!-- Document Viewer Modal -->
+        <div id="documentModal" class="modal hidden">
+            <div class="modal-backdrop" onclick="closeDocumentModal()"></div>
+            <div class="modal-content document-modal">
+                <div class="modal-header">
+                    <h3 id="documentTitle">Document Viewer</h3>
+                    <div class="document-actions">
+                        <button class="btn btn--secondary" id="downloadDocBtn" onclick="downloadCurrentDocument()">
+                            📥 Download
+                        </button>
+                        <button class="modal-close" onclick="closeDocumentModal()">×</button>
+                    </div>
                 </div>
                 <div class="modal-body">
-                    <div class="form-group">
-                        <label class="form-label">Application Status</label>
-                        <select id="newStatus" class="form-control">
-                            <option value="Pending">Pending</option>
-                            <option value="Under Review">Under Review</option>
-                            <option value="Approved">Approved</option>
-                            <option value="Rejected">Rejected</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Admin Notes</label>
-                        <textarea id="adminNotes" class="form-control" rows="3"></textarea>
-                    </div>
-                    <div style="text-align: right; margin-top: 1rem;">
-                        <button class="btn btn--secondary" onclick="closeStatusModal()">Cancel</button>
-                        <button class="btn btn--primary" onclick="saveStatusUpdate()">Update Status</button>
-                    </div>
+                    <div id="documentViewer" class="document-viewer"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- External Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
